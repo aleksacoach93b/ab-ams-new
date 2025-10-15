@@ -1,0 +1,642 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  password      String?     // Hashed password
+  role          UserRole    @default(PLAYER)
+  firstName     String
+  lastName      String
+  avatar        String?     // URL to user avatar
+  isActive      Boolean     @default(true)
+  emailVerified Boolean     @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // Relations
+  player        Player?
+  coach         Coach?
+  staff         Staff?
+  sessions      Session[]
+  sentInvitations Invitation[] @relation("InvitationSender")
+  playerNotes   PlayerNote[]
+  loginLogs     LoginLog[]
+  
+  @@map("users")
+}
+
+model Player {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  firstName       String
+  lastName        String
+  email           String?   @unique
+  phone           String?
+  dateOfBirth     DateTime?
+  avatar          String?   // URL to player photo
+  
+  // Enhanced Profile Fields
+  position        String?   // Player position (e.g., "Forward", "Goalkeeper")
+  jerseyNumber    Int?
+  height          Float?    // in cm
+  weight          Float?    // in kg
+  preferredFoot   String?   // Left, Right, Both
+  nationality     String?
+  currentAddress  String?
+  birthCity       String?
+  birthCountry    String?
+  bloodType       String?
+  emergencyContact String?  // JSON string with contact info
+  medicalNotes    String?   // Any medical conditions or notes
+  
+  // Team and Performance
+  teamId          String?
+  dateJoined      DateTime?
+  status          PlayerStatus @default(ACTIVE)
+  
+  // Settings
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team            Team?     @relation(fields: [teamId], references: [id])
+  documents       PlayerDocument[]
+  events          EventParticipant[]
+  notes           PlayerNote[]
+  media           PlayerMedia[]
+  attendance      Attendance[]
+  notifications   Notification[]
+  invitations     Invitation[] @relation("InvitationPlayer")
+  wellnessData    WellnessData[]
+  availability    PlayerAvailability[]
+  
+  @@map("players")
+}
+
+model Coach {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  firstName       String
+  lastName        String
+  email           String?   @unique
+  phone           String?
+  dateOfBirth     DateTime?
+  avatar          String?   // URL to coach photo
+  
+  // Coach specific fields
+  coachType       String?   // S&C Coach, Head Coach, etc.
+  specialization  String?   // Strength & Conditioning, Tactical, etc.
+  experience      Int?      // Years of experience
+  certifications  String?   // JSON array of certifications
+  
+  // Team assignments
+  teams           TeamCoach[]
+  
+  // Report settings
+  dailyMorningReport     Boolean @default(false)
+  morningReportTime      String? @default("08:00")
+  dailyEveningReport     Boolean @default(false)
+  eveningReportTime      String? @default("18:00")
+  eventReports           Boolean @default(true)
+  eventReportDelay       String? @default("1.5 hours")
+  weeklyReport           Boolean @default(false)
+  weeklyReportDay        String? @default("Monday")
+  weeklyReportTime       String? @default("08:00")
+  monthlyReport          Boolean @default(false)
+  monthlyReportTime      String? @default("08:00")
+  
+  // Settings
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdEvents   Event[]   @relation("EventCreator")
+  notes           CoachNote[]
+  permissions     CoachPermission[]
+  
+  @@map("coaches")
+}
+
+model Staff {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  firstName       String
+  lastName        String
+  email           String?   @unique
+  phone           String?
+  dateOfBirth     DateTime?
+  avatar          String?   // URL to staff photo
+  
+  // Staff specific fields
+  position        String?   // Physiotherapist, Nutritionist, etc.
+  department      String?   // Medical, Performance, etc.
+  experience      Int?      // Years of experience
+  certifications  String?   // JSON array of certifications
+  
+  // Permissions
+  canCreateEvents     Boolean @default(false)
+  canEditEvents       Boolean @default(false)
+  canDeleteEvents     Boolean @default(false)
+  canViewAllPlayers   Boolean @default(true)
+  canEditPlayers      Boolean @default(false)
+  canDeletePlayers    Boolean @default(false)
+  canAddPlayerMedia   Boolean @default(false)
+  canEditPlayerMedia  Boolean @default(false)
+  canDeletePlayerMedia Boolean @default(false)
+  canAddPlayerNotes   Boolean @default(false)
+  canEditPlayerNotes  Boolean @default(false)
+  canDeletePlayerNotes Boolean @default(false)
+  canViewCalendar     Boolean @default(true)
+  canViewDashboard    Boolean @default(true)
+  canManageStaff      Boolean @default(false)
+  canViewReports      Boolean @default(false)
+  
+  // Settings
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events          EventParticipant[]
+  
+  @@map("staff")
+}
+
+model Team {
+  id          String   @id @default(cuid())
+  name        String
+  logo        String?  // URL to team logo
+  color       String?  // Team primary color
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  players     Player[]
+  coaches     TeamCoach[]
+  events      Event[]
+  locations   TeamLocation[]
+  
+  @@map("teams")
+}
+
+model TeamCoach {
+  id        String   @id @default(cuid())
+  teamId    String
+  coachId   String
+  role      String?  // Head Coach, Assistant Coach, etc.
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  coach     Coach    @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  
+  @@unique([teamId, coachId])
+  @@map("team_coaches")
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  type        EventType
+  startTime   DateTime
+  endTime     DateTime
+  locationId  String?
+  teamId      String?
+  coachId     String?     // Event creator/lead coach
+  
+  // Event settings
+  isRecurring Boolean     @default(false)
+  recurrenceRule String?  // RRULE format
+  isAllDay    Boolean     @default(false)
+  color       String?     // Hex color for calendar display
+  icon        String?     // Event icon name (Lucide icon)
+  
+  // Permissions
+  allowPlayerCreation Boolean @default(false)
+  allowPlayerReschedule Boolean @default(false)
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  location    Location?   @relation(fields: [locationId], references: [id])
+  team        Team?       @relation(fields: [teamId], references: [id])
+  coach       Coach?      @relation("EventCreator", fields: [coachId], references: [id])
+  participants EventParticipant[]
+  notes       EventNote[]
+  media       EventMedia[]
+  playerMedia PlayerMedia[]
+  attendance  Attendance[]
+  notifications Notification[]
+  
+  @@map("events")
+}
+
+model EventParticipant {
+  id        String   @id @default(cuid())
+  eventId   String
+  playerId  String?
+  staffId   String?
+  role      String?  // Participant, Substitute, etc.
+  createdAt DateTime @default(now())
+  
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player    Player?  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  staff     Staff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, playerId])
+  @@unique([eventId, staffId])
+  @@map("event_participants")
+}
+
+model Location {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  description String?
+  capacity    Int?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  events      Event[]
+  teamLocations TeamLocation[]
+  
+  @@map("locations")
+}
+
+model TeamLocation {
+  id         String   @id @default(cuid())
+  teamId     String
+  locationId String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  @@unique([teamId, locationId])
+  @@map("team_locations")
+}
+
+model PlayerDocument {
+  id          String      @id @default(cuid())
+  playerId    String
+  name        String      // Original filename
+  type        DocumentType
+  category    String?     // e.g., "Medical", "Contract", "Training"
+  url         String      // Storage URL
+  size        Int?        // File size in bytes
+  mimeType    String?
+  uploadedAt  DateTime    @default(now())
+  uploadedBy  String      // User ID who uploaded
+  isActive    Boolean     @default(true)
+  
+  player      Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@map("player_documents")
+}
+
+model PlayerMedia {
+  id          String      @id @default(cuid())
+  playerId    String
+  eventId     String?
+  name        String      // Original filename
+  type        MediaType
+  url         String      // Storage URL
+  thumbnailUrl String?    // Thumbnail for videos/images
+  size        Int?        // File size in bytes
+  mimeType    String?
+  duration    Int?        // For videos/audio in seconds
+  uploadedAt  DateTime    @default(now())
+  uploadedBy  String      // User ID who uploaded
+  isActive    Boolean     @default(true)
+  
+  player      Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  event       Event?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  
+  @@map("player_media")
+}
+
+model EventMedia {
+  id          String      @id @default(cuid())
+  eventId     String
+  name        String      // Original filename
+  type        MediaType
+  url         String      // Storage URL
+  thumbnailUrl String?    // Thumbnail for videos/images
+  size        Int?        // File size in bytes
+  mimeType    String?
+  duration    Int?        // For videos/audio in seconds
+  uploadedAt  DateTime    @default(now())
+  uploadedBy  String      // User ID who uploaded
+  isActive    Boolean     @default(true)
+  
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  @@map("event_media")
+}
+
+model PlayerNote {
+  id          String      @id @default(cuid())
+  playerId    String
+  authorId    String      // User ID who created the note
+  title       String?
+  content     String
+  type        NoteType    @default(GENERAL)
+  isPinned    Boolean     @default(false)
+  isVisibleToPlayer Boolean @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  player      Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  author      User        @relation(fields: [authorId], references: [id])
+  
+  @@map("player_notes")
+}
+
+model EventNote {
+  id          String      @id @default(cuid())
+  eventId     String
+  title       String?
+  content     String
+  type        NoteType    @default(GENERAL)
+  isPinned    Boolean     @default(false)
+  isVisibleToPlayer Boolean @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdBy   String      // User ID who created the note
+  
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  @@map("event_notes")
+}
+
+model CoachNote {
+  id          String      @id @default(cuid())
+  coachId     String
+  title       String?
+  content     String
+  type        NoteType    @default(GENERAL)
+  isPinned    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdBy   String      // User ID who created the note
+  
+  coach       Coach       @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  
+  @@map("coach_notes")
+}
+
+model Attendance {
+  id          String        @id @default(cuid())
+  eventId     String
+  playerId    String
+  status      AttendanceStatus @default(PRESENT)
+  checkInTime DateTime?
+  checkOutTime DateTime?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  event       Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  player      Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@unique([eventId, playerId])
+  @@map("attendance")
+}
+
+model WellnessData {
+  id          String      @id @default(cuid())
+  playerId    String
+  type        WellnessDataType
+  value       Float
+  unit        String?     // e.g., "kg", "bpm", "%"
+  notes       String?
+  recordedAt  DateTime    @default(now())
+  recordedBy  String      // User ID who recorded the data
+  
+  player      Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@map("wellness_data")
+}
+
+model CoachPermission {
+  id          String      @id @default(cuid())
+  coachId     String
+  permission  String      // Permission key (e.g., "view_players", "create_events")
+  isGranted   Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  coach       Coach       @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  
+  @@unique([coachId, permission])
+  @@map("coach_permissions")
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  playerId    String
+  eventId     String?
+  type        NotificationType
+  title       String
+  message     String
+  isRead      Boolean          @default(false)
+  scheduledFor DateTime?       // For scheduled notifications
+  sentAt      DateTime?
+  createdAt   DateTime         @default(now())
+  
+  player      Player           @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  event       Event?           @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  
+  @@map("notifications")
+}
+
+model Invitation {
+  id          String          @id @default(cuid())
+  email       String
+  senderId    String
+  playerId    String?
+  token       String          @unique
+  status      InvitationStatus @default(PENDING)
+  expiresAt   DateTime
+  sentAt      DateTime        @default(now())
+  acceptedAt  DateTime?
+  
+  sender      User            @relation("InvitationSender", fields: [senderId], references: [id])
+  player      Player?         @relation("InvitationPlayer", fields: [playerId], references: [id])
+  
+  @@map("invitations")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("sessions")
+}
+
+// Enums
+enum UserRole {
+  ADMIN
+  COACH
+  PLAYER
+  STAFF
+}
+
+enum PlayerStatus {
+  FULLY_AVAILABLE
+  PARTIAL_TRAINING
+  PARTIAL_TEAM_INDIVIDUAL
+  REHAB_INDIVIDUAL
+  NOT_AVAILABLE_INJURY
+  PARTIAL_ILLNESS
+  NOT_AVAILABLE_ILLNESS
+  INDIVIDUAL_WORK
+  RECOVERY
+  NOT_AVAILABLE_OTHER
+  DAY_OFF
+  NATIONAL_TEAM
+  PHYSIO_THERAPY
+  ACTIVE
+  INJURED
+  SUSPENDED
+  INACTIVE
+  RETIRED
+}
+
+enum EventType {
+  TRAINING
+  MATCH
+  MEETING
+  MEDICAL
+  RECOVERY
+  MEAL
+  COFFEE
+  OTHER
+}
+
+enum DocumentType {
+  PDF
+  IMAGE
+  VIDEO
+  AUDIO
+  OTHER
+}
+
+enum MediaType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  OTHER
+}
+
+enum NoteType {
+  GENERAL
+  MEDICAL
+  PERFORMANCE
+  TACTICAL
+  PERSONAL
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  INJURED
+}
+
+enum WellnessDataType {
+  WEIGHT
+  HEIGHT
+  BODY_FAT
+  MUSCLE_MASS
+  HEART_RATE
+  BLOOD_PRESSURE
+  SLEEP_HOURS
+  STRESS_LEVEL
+  MOOD
+  ENERGY_LEVEL
+  OTHER
+}
+
+enum NotificationType {
+  EVENT_REMINDER
+  MEDIA_UPLOADED
+  NOTE_ADDED
+  WELLNESS_ALERT
+  ATTENDANCE_REMINDER
+  GENERAL
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+model PlayerAvailability {
+  id        String   @id @default(cuid())
+  playerId  String
+  date      DateTime
+  status    PlayerStatus
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  
+  @@unique([playerId, date])
+  @@map("player_availability")
+}
+
+model LoginLog {
+  id          String   @id @default(cuid())
+  userId      String
+  email       String
+  role        UserRole
+  firstName   String
+  lastName    String
+  avatar      String?
+  ipAddress   String
+  userAgent   String
+  location    String?  // Could be derived from IP or provided by client
+  success     Boolean  // true for successful login, false for failed attempt
+  failureReason String? // Only set when success is false
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("login_logs")
+}
