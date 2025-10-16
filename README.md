@@ -1,5 +1,5 @@
 # AB - Athlete Management System
-## Deployment ready
+## Deployment ready - Force deployment trigger
 
 A comprehensive athlete and sports management platform built with Next.js 15, TypeScript, Prisma, and Tailwind CSS.
 
