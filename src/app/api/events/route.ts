@@ -195,8 +195,15 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔍 Event creation request received')
+    
+    // Ensure database connection
+    await prisma.$connect()
+    console.log('✅ Database connected')
+    
     const body = await request.json()
-    console.log('Received request body:', body)
+    console.log('📝 Request body:', body)
+    
     const {
       title,
       description,
@@ -211,11 +218,23 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!title || !date) {
+      console.log('❌ Validation failed: missing title or date')
       return NextResponse.json(
         { message: 'Title and date are required' },
         { status: 400 }
       )
     }
+
+    console.log('📅 Creating event with data:', {
+      title,
+      type,
+      date,
+      startTime,
+      endTime,
+      location,
+      selectedPlayers,
+      selectedStaff
+    })
 
     // Create event
     const event = await prisma.event.create({
@@ -253,12 +272,13 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    console.log('✅ Event created successfully:', event.id)
     return NextResponse.json(
       { message: 'Event created successfully', event },
       { status: 201 }
     )
   } catch (error) {
-    console.error('Error creating event:', error)
+    console.error('❌ Error creating event:', error)
     console.error('Error details:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       code: (error as any)?.code,
@@ -276,5 +296,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }
