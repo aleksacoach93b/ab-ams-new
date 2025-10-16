@@ -262,10 +262,18 @@ export async function POST(request: NextRequest) {
     console.error('Error details:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       code: (error as any)?.code,
-      meta: (error as any)?.meta
+      meta: (error as any)?.meta,
+      stack: error instanceof Error ? error.stack : undefined
     })
     return NextResponse.json(
-      { message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        message: 'Internal server error', 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: {
+          code: (error as any)?.code,
+          meta: (error as any)?.meta
+        }
+      },
       { status: 500 }
     )
   }
