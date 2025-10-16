@@ -24,26 +24,9 @@ export async function GET(request: NextRequest) {
       whereClause.parentId = null // Root level folders
     }
 
-    // Get folders that the user has visibility to
+    // Get folders that the user has access to
     const folders = await prisma.reportFolder.findMany({
-      where: {
-        ...whereClause,
-        OR: [
-          // Folders where user has explicit visibility
-          {
-            visibility: {
-              some: {
-                userId: userId,
-                canView: true
-              }
-            }
-          },
-          // Folders created by the user (always visible to creator)
-          {
-            createdBy: userId
-          }
-        ]
-      },
+      where: whereClause,
       include: {
         parent: true,
         children: {
@@ -57,20 +40,8 @@ export async function GET(request: NextRequest) {
           },
           select: {
             id: true,
-            title: true,
+            name: true,
             createdAt: true
-          }
-        },
-        visibility: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                role: true
-              }
-            }
           }
         },
         _count: {
@@ -126,60 +97,9 @@ export async function POST(request: NextRequest) {
       include: {
         parent: true,
         children: true,
-        reports: true,
-        visibility: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                role: true
-              }
-            }
-          }
-        }
+        reports: true
       }
     })
-
-    // Set visibility permissions if provided
-    if (visibility && Array.isArray(visibility)) {
-      for (const vis of visibility) {
-        await prisma.reportVisibility.create({
-          data: {
-            folderId: folder.id,
-            userId: vis.userId,
-            canView: vis.canView !== undefined ? vis.canView : true,
-            canEdit: vis.canEdit !== undefined ? vis.canEdit : false,
-            canDelete: vis.canDelete !== undefined ? vis.canDelete : false
-          }
-        })
-      }
-    } else {
-      // If no explicit visibility is provided, automatically share with staff who have canViewReports permission
-      const staffWithReportsPermission = await prisma.staff.findMany({
-        where: {
-          canViewReports: true,
-          isActive: true
-        },
-        select: {
-          userId: true
-        }
-      })
-
-      // Create visibility entries for all staff with reports permission (including the creator)
-      for (const staff of staffWithReportsPermission) {
-        await prisma.reportVisibility.create({
-          data: {
-            folderId: folder.id,
-            userId: staff.userId,
-            canView: true,
-            canEdit: staff.userId === createdBy, // Creator can edit
-            canDelete: staff.userId === createdBy // Creator can delete
-          }
-        })
-      }
-    }
 
     return NextResponse.json({
       message: 'Folder created successfully',

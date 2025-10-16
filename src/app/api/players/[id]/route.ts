@@ -57,16 +57,13 @@ export async function PUT(
     }
 
     const {
-      firstName,
-      lastName,
+      name,
       email,
       password,
       phone,
       dateOfBirth,
       position,
       jerseyNumber,
-      height,
-      weight,
       status
     } = body
 
@@ -104,15 +101,12 @@ export async function PUT(
     const player = await prisma.player.update({
       where: { id },
       data: {
-        firstName,
-        lastName,
+        name,
         email,
         phone,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         position,
         jerseyNumber: jerseyNumber ? parseInt(jerseyNumber) : null,
-        height: height ? parseFloat(height) : null,
-        weight: weight ? parseFloat(weight) : null,
         status
       },
       include: {
@@ -157,7 +151,7 @@ export async function DELETE(
     }
 
     const playerData = Array.isArray(player) ? player[0] : player
-    console.log('Found player:', playerData.firstName, playerData.lastName, 'User ID:', playerData.userId)
+    console.log('Found player:', playerData.name, 'User ID:', playerData.userId)
 
     // Delete the player record using direct SQL
     await prisma.$executeRaw`DELETE FROM players WHERE id = ${playerId}`

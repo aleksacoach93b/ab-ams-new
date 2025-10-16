@@ -64,11 +64,6 @@ export async function PUT(
       startTime,
       endTime,
       location,
-      isAllDay,
-      isRecurring,
-      allowPlayerCreation,
-      allowPlayerReschedule,
-      icon,
     } = body
 
     // Validate required fields
@@ -79,32 +74,28 @@ export async function PUT(
       )
     }
 
-    // Create start and end datetime
-    const startDateTime = new Date(`${date}T${startTime || '00:00'}`)
-    const endDateTime = new Date(`${date}T${endTime || '23:59'}`)
-
     // Update event
     const event = await prisma.event.update({
       where: { id: eventId },
       data: {
         title,
         description,
-        type: (type && ['TRAINING', 'MATCH', 'MEETING', 'MEDICAL', 'RECOVERY', 'MEAL', 'COFFEE', 'OTHER'].includes(type.toUpperCase())) 
+        type: (type && ['TRAINING', 'MATCH', 'MEETING', 'RECOVERY', 'MEAL', 'COFFEE', 'OTHER'].includes(type.toUpperCase())) 
           ? type.toUpperCase() 
           : 'TRAINING',
-        startTime: startDateTime,
-        endTime: endDateTime,
-        isRecurring: isRecurring || false,
-        isAllDay: isAllDay || false,
-        allowPlayerCreation: allowPlayerCreation || false,
-        allowPlayerReschedule: allowPlayerReschedule || false,
-        color: '#3B82F6', // Default blue color
-        icon: icon || 'Calendar',
+        date: new Date(date),
+        startTime: startTime || '00:00',
+        endTime: endTime || '23:59',
+        location: location || null,
+        iconName: type || 'Calendar',
       },
       include: {
-        location: true,
-        team: true,
-        coach: true,
+        participants: {
+          include: {
+            player: true,
+            staff: true,
+          }
+        }
       },
     })
 

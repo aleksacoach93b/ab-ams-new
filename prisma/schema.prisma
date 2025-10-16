@@ -202,6 +202,7 @@ model Report {
   
   // Relations
   folder      ReportFolder @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  accesses    ReportAccess[]
   
   @@map("Report")
 }
@@ -212,6 +213,8 @@ model ReportAccess {
   userId      String
   accessedAt  DateTime    @default(now())
   action      String
+  
+  report      Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
   
   @@map("ReportAccess")
 }

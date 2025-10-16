@@ -28,38 +28,17 @@ export async function GET(request: NextRequest) {
       whereClause.folderId = null
     }
 
-    // Get reports that the user has visibility to
+    // Get reports that the user has access to
     const reports = await prisma.report.findMany({
-      where: {
-        ...whereClause,
-        OR: [
-          // Reports where user has explicit visibility
-          {
-            visibility: {
-              some: {
-                userId: userId,
-                canView: true
-              }
-            }
-          },
-          // Reports created by the user (always visible to creator)
-          {
-            createdBy: userId
-          }
-        ]
-      },
+      where: whereClause,
       include: {
         folder: true,
-        visibility: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                role: true
-              }
-            }
+        accesses: {
+          where: {
+            userId: userId
+          },
+          orderBy: {
+            accessedAt: 'desc'
           }
         }
       },
@@ -149,25 +128,25 @@ export async function POST(request: NextRequest) {
     
     const report = await prisma.report.create({
       data: {
-        title,
-        description: description || null,
-        folderId,
+        name: title,
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,
         fileUrl,
+        folderId,
         createdBy,
-        visibility: {
-          create: {
-            userId: createdBy,
-            canView: true,
-            canEdit: true,
-            canDelete: true
-          }
-        }
       },
       include: {
         folder: true
+      }
+    })
+
+    // Create initial access record for the creator
+    await prisma.reportAccess.create({
+      data: {
+        reportId: report.id,
+        userId: createdBy,
+        action: 'created'
       }
     })
 
@@ -175,23 +154,20 @@ export async function POST(request: NextRequest) {
     const staffWithReportsPermission = await prisma.staff.findMany({
       where: {
         canViewReports: true,
-        isActive: true
       },
       select: {
         userId: true
       }
     })
 
-    // Create visibility entries for all staff with reports permission (excluding the creator)
+    // Create access entries for all staff with reports permission (excluding the creator)
     for (const staff of staffWithReportsPermission) {
       if (staff.userId !== createdBy) {
-        await prisma.reportVisibility.create({
+        await prisma.reportAccess.create({
           data: {
             reportId: report.id,
             userId: staff.userId,
-            canView: true,
-            canEdit: false,
-            canDelete: false
+            action: 'shared'
           }
         })
       }

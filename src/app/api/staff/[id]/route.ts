@@ -51,18 +51,14 @@ export async function PUT(
     const { id } = await params
     const body = await request.json()
     const {
-      firstName,
-      lastName,
+      name,
       email,
       password,
       phone,
-      dateOfBirth,
       position,
-      department,
-      experience,
-      certifications,
-      permissions,
-      isActive
+      canViewReports,
+      canEditReports,
+      canDeleteReports
     } = body
 
     // Get existing staff member
@@ -80,10 +76,7 @@ export async function PUT(
 
     // Update user data
     const userUpdateData: any = {
-      firstName,
-      lastName,
-      email,
-      isActive
+      email
     }
 
     // Update password if provided
@@ -100,40 +93,19 @@ export async function PUT(
     const staff = await prisma.staff.update({
       where: { id },
       data: {
-        firstName,
-        lastName,
+        name,
         email,
         phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         position,
-        department,
-        experience: experience ? parseInt(experience) : null,
-        certifications: certifications ? JSON.stringify(certifications) : null,
-        // Update permissions
-        canCreateEvents: permissions?.canCreateEvents || false,
-        canEditEvents: permissions?.canEditEvents || false,
-        canDeleteEvents: permissions?.canDeleteEvents || false,
-        canViewAllPlayers: permissions?.canViewAllPlayers !== undefined ? permissions.canViewAllPlayers : true,
-        canEditPlayers: permissions?.canEditPlayers || false,
-        canDeletePlayers: permissions?.canDeletePlayers || false,
-        canAddPlayerMedia: permissions?.canAddPlayerMedia || false,
-        canEditPlayerMedia: permissions?.canEditPlayerMedia || false,
-        canDeletePlayerMedia: permissions?.canDeletePlayerMedia || false,
-        canAddPlayerNotes: permissions?.canAddPlayerNotes || false,
-        canEditPlayerNotes: permissions?.canEditPlayerNotes || false,
-        canDeletePlayerNotes: permissions?.canDeletePlayerNotes || false,
-        canViewCalendar: permissions?.canViewCalendar !== undefined ? permissions.canViewCalendar : true,
-        canViewDashboard: permissions?.canViewDashboard !== undefined ? permissions.canViewDashboard : true,
-        canManageStaff: permissions?.canManageStaff || false,
-        canViewReports: permissions?.canViewReports || false
+        canViewReports: canViewReports || false,
+        canEditReports: canEditReports || false,
+        canDeleteReports: canDeleteReports || false
       },
       include: {
         user: {
           select: {
             id: true,
             email: true,
-            firstName: true,
-            lastName: true,
             isActive: true,
             lastLoginAt: true,
             createdAt: true
