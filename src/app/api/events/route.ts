@@ -197,21 +197,17 @@ export async function POST(request: NextRequest) {
   try {
     console.log('🔍 Event creation request received')
     
-    // Ensure database connection
-    await prisma.$connect()
-    console.log('✅ Database connected')
-    
     const body = await request.json()
     console.log('📝 Request body:', body)
     
     const {
       title,
-      description,
-      type,
+      description = '',
+      type = 'TRAINING',
       date,
-      startTime,
-      endTime,
-      location,
+      startTime = '10:00',
+      endTime = '11:00',
+      location = '',
       selectedPlayers = [], // Array of player IDs
       selectedStaff = [], // Array of staff IDs
     } = body
@@ -236,32 +232,54 @@ export async function POST(request: NextRequest) {
       selectedStaff
     })
 
-    // Create event
+    // Create event first without participants
+    const eventData = {
+      title,
+      description,
+      type: (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
+        ? type.toUpperCase() as EventType 
+        : EventType.TRAINING,
+      date: new Date(date),
+      startTime: startTime || '00:00',
+      endTime: endTime || '23:59',
+      location: location || null,
+      iconName: type || 'Calendar',
+    }
+
     const event = await prisma.event.create({
-      data: {
-        title,
-        description,
-        type: (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
-          ? type.toUpperCase() as EventType 
-          : EventType.TRAINING,
-        date: new Date(date),
-        startTime: startTime || '00:00',
-        endTime: endTime || '23:59',
-        location: location || null,
-        iconName: type || 'Calendar',
-        participants: {
-          create: [
-            // Add selected players
-            ...selectedPlayers.map((playerId: string) => ({
-              playerId: playerId,
-            })),
-            // Add selected staff
-            ...selectedStaff.map((staffId: string) => ({
-              staffId: staffId,
-            }))
-          ]
-        }
-      },
+      data: eventData
+    })
+
+    console.log('✅ Event created successfully:', event.id)
+
+    // Add participants if any
+    if (selectedPlayers.length > 0 || selectedStaff.length > 0) {
+      console.log('👥 Adding participants...')
+      
+      const participantData = [
+        // Add selected players
+        ...selectedPlayers.map((playerId: string) => ({
+          eventId: event.id,
+          playerId: playerId,
+        })),
+        // Add selected staff
+        ...selectedStaff.map((staffId: string) => ({
+          eventId: event.id,
+          staffId: staffId,
+        }))
+      ]
+
+      if (participantData.length > 0) {
+        await prisma.eventParticipant.createMany({
+          data: participantData
+        })
+        console.log('✅ Participants added successfully')
+      }
+    }
+
+    // Fetch the complete event with participants
+    const completeEvent = await prisma.event.findUnique({
+      where: { id: event.id },
       include: {
         participants: {
           include: {
@@ -272,9 +290,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('✅ Event created successfully:', event.id)
     return NextResponse.json(
-      { message: 'Event created successfully', event },
+      { message: 'Event created successfully', event: completeEvent },
       { status: 201 }
     )
   } catch (error) {
@@ -296,7 +313,5 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
