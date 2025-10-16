@@ -21,7 +21,7 @@ export async function GET() {
     })
     
     if (admin) {
-      console.log('✅ Admin user found:', admin.firstName, admin.lastName)
+      console.log('✅ Admin user found:', admin.email)
     } else {
       console.log('❌ Admin user not found')
     }
@@ -31,7 +31,7 @@ export async function GET() {
       message: 'Database connection successful',
       userCount,
       adminExists: !!admin,
-      adminName: admin ? `${admin.firstName} ${admin.lastName}` : null,
+      adminEmail: admin ? admin.email : null,
       environment: {
         databaseUrlSet: !!process.env.DATABASE_URL,
         jwtSecretSet: !!process.env.JWT_SECRET
