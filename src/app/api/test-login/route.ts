@@ -1,46 +1,74 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword, generateToken } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
 
-export async function GET() {
+export async function POST(request: NextRequest) {
   try {
-    // Find a player to test with
-    const player = await prisma.player.findFirst({
-      include: {
-        user: true
-      }
-    })
-
-    if (!player) {
-      return NextResponse.json({ message: 'No players found' }, { status: 404 })
+    const { email, password } = await request.json()
+    
+    console.log('🔍 Testing login for:', email)
+    
+    if (!email || !password) {
+      return NextResponse.json(
+        { message: 'Email and password are required' },
+        { status: 400 }
+      )
     }
 
-    // Generate a test token
-    const token = generateToken({
-      userId: player.user.id,
-      email: player.user.email,
-      role: player.user.role,
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() }
     })
 
+    if (!user) {
+      console.log('❌ User not found:', email)
+      return NextResponse.json(
+        { message: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    console.log('✅ User found:', user.firstName, user.lastName)
+    console.log('👑 Role:', user.role)
+    console.log('🔐 Has password:', !!user.password)
+
+    // Check password
+    if (!user.password) {
+      console.log('❌ User has no password set')
+      return NextResponse.json(
+        { message: 'User has no password set' },
+        { status: 400 }
+      )
+    }
+
+    const isValidPassword = await bcrypt.compare(password, user.password)
+    
+    if (!isValidPassword) {
+      console.log('❌ Invalid password')
+      return NextResponse.json(
+        { message: 'Invalid password' },
+        { status: 401 }
+      )
+    }
+
+    console.log('✅ Password is valid!')
+
+    // Return user data without password
+    const { password: _, ...userWithoutPassword } = user
+
     return NextResponse.json({
-      message: 'Test login successful',
-      token,
-      user: {
-        id: player.user.id,
-        email: player.user.email,
-        role: player.user.role,
-        player: {
-          id: player.id,
-          name: player.name,
-          position: player.position
-        }
-      }
+      success: true,
+      message: 'Login test successful',
+      user: userWithoutPassword
     })
+
   } catch (error) {
-    console.error('Test login error:', error)
-    return NextResponse.json(
-      { message: 'Test login failed' },
-      { status: 500 }
-    )
+    console.error('❌ Login test failed:', error)
+    return NextResponse.json({
+      success: false,
+      error: error.message
+    }, { status: 500 })
+  } finally {
+    await prisma.$disconnect()
   }
 }
