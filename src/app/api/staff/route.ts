@@ -33,7 +33,15 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔍 Staff creation request received')
+    
+    // Ensure database connection
+    await prisma.$connect()
+    console.log('✅ Database connected')
+    
     const body = await request.json()
+    console.log('📝 Request body:', body)
+    
     const {
       name,
       email,
@@ -44,6 +52,7 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!name || !email || !password) {
+      console.log('❌ Validation failed: missing required fields')
       return NextResponse.json(
         { message: 'Name, email, and password are required' },
         { status: 400 }
@@ -56,12 +65,14 @@ export async function POST(request: NextRequest) {
     })
 
     if (existingUser) {
+      console.log('❌ Email already exists:', email)
       return NextResponse.json(
         { message: 'Email already exists' },
         { status: 400 }
       )
     }
 
+    console.log('👤 Creating user account...')
     // Hash password
     const hashedPassword = await hashPassword(password)
 
@@ -74,7 +85,9 @@ export async function POST(request: NextRequest) {
         isActive: true
       }
     })
+    console.log('✅ User created:', user.id)
 
+    console.log('👔 Creating staff record...')
     // Create staff record
     const staff = await prisma.staff.create({
       data: {
@@ -99,13 +112,23 @@ export async function POST(request: NextRequest) {
         }
       }
     })
+    console.log('✅ Staff created:', staff.id)
 
     return NextResponse.json(staff, { status: 201 })
   } catch (error) {
-    console.error('Error creating staff:', error)
+    console.error('❌ Error creating staff:', error)
     return NextResponse.json(
-      { message: 'Internal server error', error: error.message },
+      { 
+        message: 'Internal server error', 
+        error: error.message,
+        details: {
+          code: (error as any)?.code,
+          meta: (error as any)?.meta
+        }
+      },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }
