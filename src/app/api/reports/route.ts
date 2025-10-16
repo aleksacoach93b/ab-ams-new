@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
+// import { writeFile, mkdir } from 'fs/promises'
+// import { join } from 'path'
+// import { existsSync } from 'fs'
 
 export async function GET(request: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    let whereClause: any = {
+    const whereClause: any = {
       isActive: true
     }
 

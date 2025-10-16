@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
     const reportId = searchParams.get('reportId') // Filter by specific report
     const userId = searchParams.get('userId') // Filter by specific user
 
-    let whereClause: any = {}
+    const whereClause: any = {}
 
     if (action) {
       whereClause.action = action
