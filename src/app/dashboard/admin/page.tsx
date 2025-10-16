@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, Users, Shield, Clock, MapPin, User, AlertTriangle } from 'lucide-react'
+import { Settings, Users, Shield, Clock, MapPin, User, AlertTriangle, Eye, Download, FileText, TrendingUp, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
 import { useTheme } from '@/contexts/ThemeContext'
 
@@ -26,6 +26,41 @@ interface LoginStats {
   successfulLogins: number
   failedLogins: number
   uniqueUsers: number
+}
+
+interface FileAnalytics {
+  id: string
+  reportId: string
+  userId: string
+  action: string
+  ipAddress?: string
+  userAgent?: string
+  createdAt: string
+  user: {
+    id: string
+    firstName: string
+    lastName: string
+    email: string
+    role: string
+  }
+  report: {
+    id: string
+    title: string
+    fileName: string
+    fileType: string
+    folder?: {
+      id: string
+      name: string
+    }
+  }
+}
+
+interface AnalyticsSummary {
+  totalViews: number
+  totalDownloads: number
+  uniqueUsers: number
+  uniqueReports: number
+  recentActivity: number
 }
 
 const adminSections = [
@@ -54,10 +89,19 @@ export default function AdminPage() {
     failedLogins: 0,
     uniqueUsers: 0
   })
+  const [fileAnalytics, setFileAnalytics] = useState<FileAnalytics[]>([])
+  const [analyticsSummary, setAnalyticsSummary] = useState<AnalyticsSummary>({
+    totalViews: 0,
+    totalDownloads: 0,
+    uniqueUsers: 0,
+    uniqueReports: 0,
+    recentActivity: 0
+  })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchLoginData()
+    fetchAnalyticsData()
   }, [])
 
   const fetchLoginData = async () => {
@@ -84,6 +128,19 @@ export default function AdminPage() {
       console.error('Error fetching login data:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchAnalyticsData = async () => {
+    try {
+      const response = await fetch('/api/analytics/file-access?limit=20')
+      if (response.ok) {
+        const data = await response.json()
+        setFileAnalytics(data.analytics)
+        setAnalyticsSummary(data.summary)
+      }
+    } catch (error) {
+      console.error('Error fetching analytics data:', error)
     }
   }
 
@@ -291,6 +348,129 @@ export default function AdminPage() {
               })}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* File Access Analytics */}
+      <div className="rounded-lg shadow" style={{ backgroundColor: colorScheme.surface }}>
+        <div className="px-6 py-4 border-b" style={{ borderColor: colorScheme.border }}>
+          <h3 className="text-lg font-medium" style={{ color: colorScheme.text }}>📊 File Access Analytics</h3>
+          <p className="text-sm mt-1" style={{ color: colorScheme.textSecondary }}>
+            Track who opens and downloads files from the Reports system
+          </p>
+        </div>
+        <div className="p-6">
+          {/* Analytics Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: colorScheme.background, borderColor: colorScheme.border }}>
+              <div className="flex items-center">
+                <Eye className="h-8 w-8 mr-3" style={{ color: '#3B82F6' }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Total Views</p>
+                  <p className="text-2xl font-bold" style={{ color: colorScheme.text }}>{analyticsSummary.totalViews}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: colorScheme.background, borderColor: colorScheme.border }}>
+              <div className="flex items-center">
+                <Download className="h-8 w-8 mr-3" style={{ color: '#10B981' }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Downloads</p>
+                  <p className="text-2xl font-bold" style={{ color: colorScheme.text }}>{analyticsSummary.totalDownloads}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: colorScheme.background, borderColor: colorScheme.border }}>
+              <div className="flex items-center">
+                <Users className="h-8 w-8 mr-3" style={{ color: '#F59E0B' }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Active Users</p>
+                  <p className="text-2xl font-bold" style={{ color: colorScheme.text }}>{analyticsSummary.uniqueUsers}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: colorScheme.background, borderColor: colorScheme.border }}>
+              <div className="flex items-center">
+                <FileText className="h-8 w-8 mr-3" style={{ color: '#8B5CF6' }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Files Accessed</p>
+                  <p className="text-2xl font-bold" style={{ color: colorScheme.text }}>{analyticsSummary.uniqueReports}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-lg border" style={{ backgroundColor: colorScheme.background, borderColor: colorScheme.border }}>
+              <div className="flex items-center">
+                <TrendingUp className="h-8 w-8 mr-3" style={{ color: '#EF4444' }} />
+                <div>
+                  <p className="text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Last 24h</p>
+                  <p className="text-2xl font-bold" style={{ color: colorScheme.text }}>{analyticsSummary.recentActivity}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent File Access Activity */}
+          <div>
+            <h4 className="text-md font-medium mb-4" style={{ color: colorScheme.text }}>Recent File Access Activity</h4>
+            {fileAnalytics.length === 0 ? (
+              <div className="text-center py-8">
+                <BarChart3 className="h-12 w-12 mx-auto mb-4" style={{ color: colorScheme.textSecondary }} />
+                <p className="text-lg font-medium" style={{ color: colorScheme.text }}>No file access activity yet</p>
+                <p className="text-sm" style={{ color: colorScheme.textSecondary }}>File views and downloads will appear here once users start accessing reports</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {fileAnalytics.map((activity) => (
+                  <div key={activity.id} className="flex items-center space-x-4 p-4 rounded-lg border" 
+                       style={{ 
+                         backgroundColor: colorScheme.background,
+                         borderColor: colorScheme.border 
+                       }}>
+                    <div className="flex-shrink-0">
+                      {activity.action === 'view' ? (
+                        <Eye className="h-5 w-5" style={{ color: '#3B82F6' }} />
+                      ) : (
+                        <Download className="h-5 w-5" style={{ color: '#10B981' }} />
+                      )}
+                    </div>
+                    
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <p className="text-sm font-medium" style={{ color: colorScheme.text }}>
+                          {activity.user.firstName} {activity.user.lastName}
+                        </p>
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
+                              style={{ 
+                                backgroundColor: activity.user.role === 'ADMIN' ? '#FEE2E2' : 
+                                               activity.user.role === 'COACH' ? '#FEF3C7' : '#E5E7EB',
+                                color: activity.user.role === 'ADMIN' ? '#DC2626' : 
+                                       activity.user.role === 'COACH' ? '#D97706' : '#374151'
+                              }}>
+                          {activity.user.role}
+                        </span>
+                        <span className="text-sm font-medium" style={{ color: activity.action === 'view' ? '#3B82F6' : '#10B981' }}>
+                          {activity.action === 'view' ? 'viewed' : 'downloaded'}
+                        </span>
+                      </div>
+                      <p className="text-sm" style={{ color: colorScheme.textSecondary }}>
+                        <span className="font-medium">{activity.report.title}</span>
+                        {activity.report.folder && (
+                          <span> from {activity.report.folder.name}</span>
+                        )}
+                      </p>
+                      <p className="text-xs" style={{ color: colorScheme.textSecondary }}>
+                        {formatTimeAgo(activity.createdAt)} • {activity.fileType} • {activity.ipAddress}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

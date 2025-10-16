@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Calendar, Users, TrendingUp, Clock, User, Activity, AlertTriangle } from 'lucide-react'
+import { Calendar, Users, TrendingUp, Clock, User, Activity, AlertTriangle, FileText, FolderOpen } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useAuth } from '@/contexts/AuthContext'
 import MobileCalendar from '@/components/MobileCalendar'
 
 interface Player {
@@ -23,22 +24,24 @@ interface Event {
   title: string
   description?: string
   type: string
-  date: string
-  startTime?: string
-  endTime?: string
+  startTime: string
+  endTime: string
   location?: string
   participants: Player[]
 }
 
 export default function Dashboard() {
   const { colorScheme } = useTheme()
+  const { user } = useAuth()
   const [players, setPlayers] = useState<Player[]>([])
   const [events, setEvents] = useState<Event[]>([])
+  const [staffPermissions, setStaffPermissions] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetchPlayers()
     fetchEvents()
+    fetchStaffPermissions()
   }, [])
 
   const fetchPlayers = async () => {
@@ -67,20 +70,56 @@ export default function Dashboard() {
     }
   }
 
+  const fetchStaffPermissions = async () => {
+    try {
+      if (user?.role === 'STAFF') {
+        const response = await fetch('/api/staff')
+        if (response.ok) {
+          const staffData = await response.json()
+          const currentStaff = staffData.find((staff: any) => staff.userId === user?.id)
+          if (currentStaff) {
+            setStaffPermissions(currentStaff)
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching staff permissions:', error)
+    }
+  }
+
   // Calculate stats
   const totalPlayers = players.length
   const activePlayers = players.filter(p => p.status === 'ACTIVE' || p.status === 'FULLY_AVAILABLE').length
-  const upcomingEvents = events.filter(e => new Date(e.date) >= new Date()).length
+  
+  // Helper function to compare dates (ignoring time)
+  const isTodayOrFuture = (eventDateTime: string) => {
+    const today = new Date()
+    const event = new Date(eventDateTime)
+    
+    // Reset time to start of day for both dates
+    today.setHours(0, 0, 0, 0)
+    event.setHours(0, 0, 0, 0)
+    
+    return event >= today
+  }
+  
+  const upcomingEvents = events.filter(e => isTodayOrFuture(e.startTime)).length
 
   // Get next 7 days events
   const nextWeekEvents = events
     .filter(e => {
-      const eventDate = new Date(e.date)
+      const eventDate = new Date(e.startTime)
       const today = new Date()
       const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000)
+      
+      // Reset time to start of day for comparison
+      today.setHours(0, 0, 0, 0)
+      nextWeek.setHours(23, 59, 59, 999)
+      eventDate.setHours(0, 0, 0, 0)
+      
       return eventDate >= today && eventDate <= nextWeek
     })
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
     .slice(0, 5)
 
   const formatDate = (dateString: string) => {
@@ -90,12 +129,13 @@ export default function Dashboard() {
     })
   }
 
-  const formatTime = (timeString: string) => {
-    if (!timeString) return ''
-    const [hours, minutes] = timeString.split(':')
-    const hour = parseInt(hours)
-    const ampm = hour >= 12 ? 'PM' : 'AM'
-    const displayHour = hour % 12 || 12
+  const formatTime = (dateTimeString: string) => {
+    if (!dateTimeString) return ''
+    const date = new Date(dateTimeString)
+    const hours = date.getHours()
+    const minutes = date.getMinutes().toString().padStart(2, '0')
+    const ampm = hours >= 12 ? 'PM' : 'AM'
+    const displayHour = hours % 12 || 12
     return `${displayHour}:${minutes} ${ampm}`
   }
 
@@ -137,7 +177,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="p-6 rounded-lg border" style={{ backgroundColor: colorScheme.surface, borderColor: colorScheme.border }}>
           <div className="flex items-center">
             <Users className="h-8 w-8 mr-3" style={{ color: colorScheme.primary }} />
@@ -167,6 +207,23 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
+        {/* Reports Card - Only visible to Coaches and Staff with permission */}
+        {((user?.role === 'COACH' || user?.role === 'ADMIN') || (user?.role === 'STAFF' && staffPermissions?.canViewReports)) && (
+          <div 
+            className="p-6 rounded-lg border cursor-pointer hover:shadow-lg transition-shadow" 
+            style={{ backgroundColor: colorScheme.surface, borderColor: colorScheme.border }}
+            onClick={() => window.location.href = '/dashboard/reports'}
+          >
+            <div className="flex items-center">
+              <FolderOpen className="h-8 w-8 mr-3" style={{ color: '#7C3AED' }} />
+              <div>
+                <p className="text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Reports</p>
+                <p className="text-2xl font-bold" style={{ color: '#7C3AED' }}>📁</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Players Section */}
@@ -291,49 +348,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Upcoming Events */}
-      <div className="rounded-lg shadow-sm border" style={{ backgroundColor: colorScheme.surface, borderColor: colorScheme.border }}>
-        <div className="p-6">
-          <h2 className="text-xl font-semibold mb-4" style={{ color: colorScheme.text }}>
-            Upcoming Events
-          </h2>
-          
-          {nextWeekEvents.length > 0 ? (
-            <div className="space-y-3">
-              {nextWeekEvents.map((event) => (
-                <div key={event.id} className="flex items-center p-3 rounded-lg"
-                     style={{ backgroundColor: colorScheme.background }}>
-                  <div 
-                    className="w-3 h-3 rounded-full mr-3"
-                    style={{ backgroundColor: getEventColor(event.type) }}
-                  />
-                  <div className="flex-1">
-                    <p className="font-medium" style={{ color: colorScheme.text }}>
-                      {event.title}
-                    </p>
-                    <div className="flex items-center space-x-4 text-sm" style={{ color: colorScheme.textSecondary }}>
-                      <span className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {formatDate(event.date)}
-                      </span>
-                      {event.startTime && (
-                        <span className="flex items-center">
-                          <Clock className="h-4 w-4 mr-1" />
-                          {formatTime(event.startTime)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center py-4" style={{ color: colorScheme.textSecondary }}>
-              No upcoming events
-            </p>
-          )}
-        </div>
-      </div>
 
       {/* Calendar */}
       <div className="rounded-lg shadow-sm border" style={{ backgroundColor: colorScheme.surface, borderColor: colorScheme.border }}>

@@ -32,6 +32,8 @@ model User {
   sentInvitations Invitation[] @relation("InvitationSender")
   playerNotes   PlayerNote[]
   loginLogs     LoginLog[]
+  reportVisibility ReportVisibility[]
+  fileAnalytics FileAnalytics[]
   
   @@map("users")
 }
@@ -639,4 +641,83 @@ model LoginLog {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@map("login_logs")
+}
+
+model ReportFolder {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  parentId    String?     // For nested folders
+  createdBy   String      // User ID who created the folder
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  isActive    Boolean     @default(true)
+  
+  // Relations
+  parent      ReportFolder? @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children    ReportFolder[] @relation("FolderHierarchy")
+  reports     Report[]
+  visibility  ReportVisibility[]
+  
+  @@map("report_folders")
+}
+
+model Report {
+  id          String      @id @default(cuid())
+  title       String
+  description String?
+  folderId    String?     // Optional for root level reports
+  fileName    String
+  fileType    String      // MIME type
+  fileSize    Int         // Size in bytes
+  fileUrl     String      // Storage URL
+  thumbnailUrl String?    // Thumbnail URL for PDFs and images
+  createdBy   String      // User ID who uploaded
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  isActive    Boolean     @default(true)
+  
+  // Relations
+  folder      ReportFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  visibility  ReportVisibility[]
+  analytics   FileAnalytics[]
+  
+  @@map("reports")
+}
+
+model ReportVisibility {
+  id         String       @id @default(cuid())
+  reportId   String?
+  folderId   String?
+  userId     String       // User ID who can see the report/folder
+  canView    Boolean      @default(true)
+  canEdit    Boolean      @default(false)
+  canDelete  Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  
+  // Relations
+  report     Report?      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  folder     ReportFolder? @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([reportId, userId])
+  @@unique([folderId, userId])
+  @@map("report_visibility")
+}
+
+model FileAnalytics {
+  id          String      @id @default(cuid())
+  reportId    String      // Report that was accessed
+  userId      String      // User who accessed the file
+  action      String      // 'view' or 'download'
+  ipAddress   String?     // IP address of the user
+  userAgent   String?     // Browser/device info
+  createdAt   DateTime    @default(now())
+  
+  // Relations
+  report      Report      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("file_analytics")
 }

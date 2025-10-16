@@ -148,7 +148,6 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         subItems: [
           { name: 'Users', href: '/dashboard/admin/users' },
           { name: 'Settings', href: '/dashboard/admin/settings' },
-          { name: 'Reports', href: '/dashboard/admin/reports' },
         ],
         show: true
       })

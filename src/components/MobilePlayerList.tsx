@@ -91,28 +91,58 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'healthy': return 'bg-green-100 text-green-800'
-      case 'injured': return 'bg-yellow-100 text-yellow-800'
-      case 'suspended': return 'bg-red-100 text-red-800'
-      case 'inactive': return 'bg-gray-100 text-gray-800'
-      default: return 'bg-gray-100 text-gray-800'
+      case 'healthy': 
+      case 'fully_available':
+      case 'active': 
+        return 'text-green-400'
+      case 'injured': 
+      case 'physio_therapy': 
+        return 'text-yellow-400'
+      case 'suspended': 
+        return 'text-red-400'
+      case 'inactive': 
+        return 'text-gray-400'
+      default: 
+        return 'text-blue-400'
     }
   }
 
+  const getStatusDot = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'healthy': 
+      case 'fully_available':
+      case 'active': 
+        return 'bg-green-400'
+      case 'injured': 
+      case 'physio_therapy': 
+        return 'bg-yellow-400'
+      case 'suspended': 
+        return 'bg-red-400'
+      case 'inactive': 
+        return 'bg-gray-400'
+      default: 
+        return 'bg-blue-400'
+    }
+  }
+
+  const getPlayerInitials = (name: string) => {
+    return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2)
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: '#1e293b' }}>
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 px-4 py-3">
+      <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
               <span className="text-white text-sm font-bold">AB</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">Players</h1>
+            <h1 className="text-xl font-bold text-white">Players</h1>
           </div>
           <button 
             onClick={onAddPlayer}
-            className="text-red-600 font-medium text-sm"
+            className="text-red-400 font-medium text-sm hover:text-red-300 transition-colors"
           >
             + Add Player
           </button>
@@ -123,26 +153,30 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
       <div className="px-4 py-4 pb-20">
         {loading ? (
           <div className="text-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-600 mx-auto"></div>
-            <p className="text-gray-500 mt-2">Loading players...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400 mx-auto"></div>
+            <p className="text-gray-300 mt-2">Loading players...</p>
           </div>
         ) : players.length === 0 ? (
           <div className="text-center py-8">
-            <User className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500">No players found</p>
+            <User className="h-12 w-12 text-gray-500 mx-auto mb-4" />
+            <p className="text-gray-300">No players found</p>
             <button 
               onClick={onAddPlayer}
-              className="text-red-600 font-medium mt-2"
+              className="text-red-400 font-medium mt-2 hover:text-red-300 transition-colors"
             >
               Add your first player
             </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {players.map((player) => (
-              <div key={player.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3 flex-1">
+              <div 
+                key={player.id} 
+                className="bg-blue-900 rounded-xl shadow-lg border border-blue-800 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-blue-700"
+              >
+                {/* Card Header */}
+                <div className="p-4">
+                  <div className="flex items-start justify-between">
                     {/* Avatar */}
                     <div className="flex-shrink-0">
                       {player.avatar ? (
@@ -152,70 +186,85 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
                           className="w-12 h-12 rounded-full object-cover"
                         />
                       ) : (
-                        <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                          <User className="h-6 w-6 text-gray-500" />
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Player Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h3 className="text-lg font-semibold text-gray-900 truncate">
-                          {player.name}
-                        </h3>
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(player.status)}`}>
-                          {player.status}
-                        </span>
-                      </div>
-                      
-                      <div className="space-y-1 text-sm text-gray-600">
-                        <div className="flex items-center space-x-4">
-                          <span className="font-medium">{player.position}</span>
-                          <span>#{player.id}</span>
-                          <span>{player.age} years old</span>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                          <span>{player.height}</span>
-                          <span>{player.weight}</span>
-                        </div>
-                        <div className="flex items-center space-x-4">
-                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">
-                            {player.team}
+                        <div className="w-12 h-12 bg-blue-700 rounded-full flex items-center justify-center">
+                          <span className="text-white font-semibold text-lg">
+                            {getPlayerInitials(player.name)}
                           </span>
                         </div>
-                      </div>
+                      )}
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex items-center space-x-2">
+                      <Link
+                        href={`/dashboard/players/${player.id}`}
+                        className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center hover:bg-blue-500 transition-colors"
+                        title="View Profile"
+                      >
+                        <User className="h-4 w-4 text-white" />
+                      </Link>
+                      <Link
+                        href={`/dashboard/players/${player.id}/edit`}
+                        className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center hover:bg-green-500 transition-colors"
+                        title="Edit Player"
+                      >
+                        <Edit className="h-4 w-4 text-white" />
+                      </Link>
+                      <button
+                        onClick={() => handleDeletePlayer(player.id)}
+                        disabled={deleting === player.id}
+                        className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center hover:bg-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Delete Player"
+                      >
+                        {deleting === player.id ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        ) : (
+                          <Trash2 className="h-4 w-4 text-white" />
+                        )}
+                      </button>
                     </div>
                   </div>
+                </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center space-x-2 ml-3">
-                    <Link
-                      href={`/dashboard/players/${player.id}`}
-                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                      title="View Profile"
-                    >
-                      <User className="h-4 w-4" />
-                    </Link>
-                    <Link
-                      href={`/dashboard/players/${player.id}/edit`}
-                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                      title="Edit Player"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Link>
-                    <button
-                      onClick={() => handleDeletePlayer(player.id)}
-                      disabled={deleting === player.id}
-                      className="p-2 text-gray-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                      title="Delete Player"
-                    >
-                      {deleting === player.id ? (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-red-600"></div>
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </button>
+                {/* Card Body */}
+                <div className="px-4 pb-4">
+                  {/* Player Name */}
+                  <h3 className="text-lg font-bold text-white mb-1">
+                    {player.name}
+                  </h3>
+                  
+                  {/* Position */}
+                  <p className="text-sm text-gray-300 mb-3">
+                    {player.position}
+                  </p>
+                  
+                  {/* Player Details */}
+                  <div className="space-y-2 text-sm">
+                    {/* Age */}
+                    <div className="flex items-center text-gray-300">
+                      <span className="w-4 h-4 bg-gray-600 rounded-full mr-2"></span>
+                      <span>{player.age} years old</span>
+                    </div>
+                    
+                    {/* Height & Weight */}
+                    <div className="flex items-center text-gray-300">
+                      <span className="w-4 h-4 bg-gray-600 rounded-full mr-2"></span>
+                      <span>{player.height} • {player.weight}</span>
+                    </div>
+                    
+                    {/* Team */}
+                    <div className="flex items-center text-gray-300">
+                      <span className="w-4 h-4 bg-gray-600 rounded-full mr-2"></span>
+                      <span>{player.team}</span>
+                    </div>
+                    
+                    {/* Status */}
+                    <div className="flex items-center">
+                      <div className={`w-2 h-2 rounded-full mr-2 ${getStatusDot(player.status)}`}></div>
+                      <span className={`text-sm font-medium ${getStatusColor(player.status)}`}>
+                        {player.status.replace('_', ' ')}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
