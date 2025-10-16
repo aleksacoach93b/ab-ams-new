@@ -10,8 +10,6 @@ export async function GET() {
           select: {
             id: true,
             email: true,
-            firstName: true,
-            lastName: true,
             isActive: true,
             lastLoginAt: true,
             createdAt: true
@@ -37,23 +35,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const {
-      firstName,
-      lastName,
+      name,
       email,
       password,
       phone,
-      dateOfBirth,
       position,
-      department,
-      experience,
-      certifications,
-      permissions
     } = body
 
     // Validate required fields
-    if (!firstName || !lastName || !email || !password) {
+    if (!name || !email || !password) {
       return NextResponse.json(
-        { message: 'First name, last name, email, and password are required' },
+        { message: 'Name, email, and password are required' },
         { status: 400 }
       )
     }
@@ -78,51 +70,28 @@ export async function POST(request: NextRequest) {
       data: {
         email,
         password: hashedPassword,
-        firstName,
-        lastName,
         role: 'STAFF',
         isActive: true
       }
     })
 
-    // Create staff record with permissions
+    // Create staff record
     const staff = await prisma.staff.create({
       data: {
         userId: user.id,
-        firstName,
-        lastName,
+        name,
         email,
         phone,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
         position,
-        department,
-        experience: experience ? parseInt(experience) : null,
-        certifications: certifications ? JSON.stringify(certifications) : null,
-        // Set permissions
-        canCreateEvents: permissions?.canCreateEvents || false,
-        canEditEvents: permissions?.canEditEvents || false,
-        canDeleteEvents: permissions?.canDeleteEvents || false,
-        canViewAllPlayers: permissions?.canViewAllPlayers !== undefined ? permissions.canViewAllPlayers : true,
-        canEditPlayers: permissions?.canEditPlayers || false,
-        canDeletePlayers: permissions?.canDeletePlayers || false,
-        canAddPlayerMedia: permissions?.canAddPlayerMedia || false,
-        canEditPlayerMedia: permissions?.canEditPlayerMedia || false,
-        canDeletePlayerMedia: permissions?.canDeletePlayerMedia || false,
-        canAddPlayerNotes: permissions?.canAddPlayerNotes || false,
-        canEditPlayerNotes: permissions?.canEditPlayerNotes || false,
-        canDeletePlayerNotes: permissions?.canDeletePlayerNotes || false,
-        canViewCalendar: permissions?.canViewCalendar !== undefined ? permissions.canViewCalendar : true,
-        canViewDashboard: permissions?.canViewDashboard !== undefined ? permissions.canViewDashboard : true,
-        canManageStaff: permissions?.canManageStaff || false,
-        canViewReports: permissions?.canViewReports || false
+        canViewReports: false,
+        canEditReports: false,
+        canDeleteReports: false,
       },
       include: {
         user: {
           select: {
             id: true,
             email: true,
-            firstName: true,
-            lastName: true,
             isActive: true,
             lastLoginAt: true,
             createdAt: true
@@ -135,7 +104,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error creating staff:', error)
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error', error: error.message },
       { status: 500 }
     )
   }

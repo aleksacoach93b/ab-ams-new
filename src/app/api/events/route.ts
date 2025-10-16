@@ -38,9 +38,6 @@ export async function GET(request: NextRequest) {
             }
           },
           include: {
-            location: true,
-            team: true,
-            coach: true,
             participants: {
               include: {
                 player: true,
@@ -50,7 +47,7 @@ export async function GET(request: NextRequest) {
             media: true,
           },
           orderBy: {
-            startTime: 'asc'
+            date: 'asc'
           }
         })
       } else if (userRole === 'STAFF') {
@@ -66,9 +63,6 @@ export async function GET(request: NextRequest) {
             }
           },
           include: {
-            location: true,
-            team: true,
-            coach: true,
             participants: {
               include: {
                 player: true,
@@ -78,16 +72,13 @@ export async function GET(request: NextRequest) {
             media: true,
           },
           orderBy: {
-            startTime: 'asc'
+            date: 'asc'
           }
         })
       } else {
         // For coaches and admins, show all events
         events = await prisma.event.findMany({
           include: {
-            location: true,
-            team: true,
-            coach: true,
             participants: {
               include: {
                 player: true,
@@ -97,7 +88,7 @@ export async function GET(request: NextRequest) {
             media: true,
           },
           orderBy: {
-            startTime: 'asc'
+            date: 'asc'
           }
         })
       }
@@ -105,9 +96,6 @@ export async function GET(request: NextRequest) {
       // If no user filter, show all events (for admin/coach views)
       events = await prisma.event.findMany({
         include: {
-          location: true,
-          team: true,
-          coach: true,
           participants: {
             include: {
               player: true,
@@ -117,7 +105,7 @@ export async function GET(request: NextRequest) {
           media: true,
         },
         orderBy: {
-          startTime: 'asc'
+          date: 'asc'
         }
       })
     }
@@ -217,11 +205,6 @@ export async function POST(request: NextRequest) {
       startTime,
       endTime,
       location,
-      isAllDay,
-      isRecurring,
-      allowPlayerCreation,
-      allowPlayerReschedule,
-      icon,
       selectedPlayers = [], // Array of player IDs
       selectedStaff = [], // Array of staff IDs
     } = body
@@ -234,15 +217,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create start and end datetime - use local timezone
-    const [year, month, day] = date.split('-').map(Number)
-    const [startHour, startMin] = (startTime || '00:00').split(':').map(Number)
-    const [endHour, endMin] = (endTime || '23:59').split(':').map(Number)
-    
-    const startDate = new Date(year, month - 1, day, startHour, startMin, 0)
-    const endDate = new Date(year, month - 1, day, endHour, endMin, 0)
-
-    // Create event with participants
+    // Create event
     const event = await prisma.event.create({
       data: {
         title,
@@ -250,28 +225,20 @@ export async function POST(request: NextRequest) {
         type: (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
           ? type.toUpperCase() as EventType 
           : EventType.TRAINING,
-        startTime: startDate,
-        endTime: endDate,
-        locationId: null, // For now, we'll handle location separately
-        teamId: null, // For now, we'll handle team separately
-        coachId: null, // For now, we'll handle coach separately
-        isRecurring: isRecurring || false,
-        isAllDay: isAllDay || false,
-        allowPlayerCreation: allowPlayerCreation || false,
-        allowPlayerReschedule: allowPlayerReschedule || false,
-        color: getEventColor(type || 'TRAINING'),
-        icon: icon || 'Calendar',
+        date: new Date(date),
+        startTime: startTime || '00:00',
+        endTime: endTime || '23:59',
+        location: location || null,
+        iconName: type || 'Calendar',
         participants: {
           create: [
             // Add selected players
             ...selectedPlayers.map((playerId: string) => ({
               playerId: playerId,
-              role: 'Participant'
             })),
             // Add selected staff
             ...selectedStaff.map((staffId: string) => ({
               staffId: staffId,
-              role: 'Participant'
             }))
           ]
         }
