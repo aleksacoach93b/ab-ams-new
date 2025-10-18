@@ -52,7 +52,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Error fetching players:', error)
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }
@@ -158,7 +161,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { 
         message: 'Internal server error', 
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         details: {
           code: (error as any)?.code,
           meta: (error as any)?.meta

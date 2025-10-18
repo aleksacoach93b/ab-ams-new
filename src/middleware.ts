@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const JWT_SECRET = process.env.JWT_SECRET
+
+if (!JWT_SECRET) {
+  console.error('JWT_SECRET environment variable is not set')
+}
 
 // Define protected routes and their required roles
 const protectedRoutes = {
@@ -53,6 +57,11 @@ export function middleware(request: NextRequest) {
   }
 
   try {
+    if (!JWT_SECRET) {
+      console.error('JWT_SECRET not available in middleware')
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
+    
     // Verify JWT token
     const decoded = jwt.verify(token, JWT_SECRET) as any
     const userRole = decoded.role

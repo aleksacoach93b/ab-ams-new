@@ -11,7 +11,8 @@
     "db:reset": "npx prisma db push --force-reset && npm run db:seed",
     "db:migrate": "npx prisma migrate deploy",
     "db:seed:production": "tsx scripts/seed-production.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.9",
