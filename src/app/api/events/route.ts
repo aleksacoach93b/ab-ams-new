@@ -177,13 +177,20 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Create start and end datetime - use local timezone
-    const [year, month, day] = date.split('-').map(Number)
-    const [startHour, startMin] = (startTime || '00:00').split(':').map(Number)
-    const [endHour, endMin] = (endTime || '23:59').split(':').map(Number)
-    
-    const startDate = new Date(year, month - 1, day, startHour, startMin, 0)
-    const endDate = new Date(year, month - 1, day, endHour, endMin, 0)
+    // Validate time format
+    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
+    if (startTime && !timeRegex.test(startTime)) {
+      return NextResponse.json(
+        { message: 'Invalid start time format' },
+        { status: 400 }
+      )
+    }
+    if (endTime && !timeRegex.test(endTime)) {
+      return NextResponse.json(
+        { message: 'Invalid end time format' },
+        { status: 400 }
+      )
+    }
 
     console.log('🔄 Updating event in database...')
     
@@ -196,8 +203,8 @@ export async function PUT(request: NextRequest) {
         type: (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
           ? type.toUpperCase() as EventType 
           : EventType.TRAINING,
-        startTime: startDate,
-        endTime: endDate,
+        startTime: startTime || '00:00',
+        endTime: endTime || '23:59',
         isRecurring: isRecurring || false,
         isAllDay: isAllDay || false,
         allowPlayerCreation: allowPlayerCreation || false,
