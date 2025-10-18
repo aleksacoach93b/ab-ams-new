@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -10,6 +10,20 @@ async function setupProduction() {
     // Test database connection
     await prisma.$connect()
     console.log('✅ Connected to Supabase database successfully!')
+    
+    // Run database migrations
+    console.log('🔄 Running database migrations...')
+    // Note: In production, migrations should be run via: npx prisma migrate deploy
+    
+    // Test if tables exist
+    try {
+      const userCount = await prisma.user.count()
+      console.log('✅ User table exists, count:', userCount)
+    } catch (error) {
+      console.log('❌ User table does not exist. Run migrations first!')
+      console.log('Run: npx prisma migrate deploy')
+      throw error
+    }
     
     // Check if admin user already exists
     const existingAdmin = await prisma.user.findFirst({
