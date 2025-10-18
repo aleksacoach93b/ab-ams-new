@@ -32,8 +32,8 @@ export async function POST() {
           DATABASE_URL: 'postgresql://postgres:Teodor06022025@db.jgcjfqcswnzliwzjbtje.supabase.co:5432/postgres',
           JWT_SECRET: 'ab-ams-super-secret-jwt-key-2024-production',
           NEXTAUTH_SECRET: 'ab-ams-nextauth-secret-2024-production',
-          NEXTAUTH_URL: 'https://ultrax-wellness-3yzeed8r2-aleksas-projects-0b0c59c9.vercel.app',
-          NEXT_PUBLIC_APP_URL: 'https://ultrax-wellness-3yzeed8r2-aleksas-projects-0b0c59c9.vercel.app',
+          NEXTAUTH_URL: 'https://ab-ams.vercel.app',
+          NEXT_PUBLIC_APP_URL: 'https://ab-ams.vercel.app',
           NEXT_PUBLIC_APP_NAME: 'AB - AMS'
         }
       }, { status: 400 })

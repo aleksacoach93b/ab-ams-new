@@ -7,7 +7,7 @@ Deployment je neuspešan jer nedostaju environment variables. Evo kako da ih dod
 ### 1. Idi na Vercel Dashboard
 1. **Idi na [vercel.com](https://vercel.com)**
 2. **Login sa: aleksacoach@gmail.com**
-3. **Pronađi projekat: `ultrax-wellness-app`**
+3. **Pronađi projekat: `ab-ams`**
 
 ### 2. Dodaj Environment Variables
 1. **Klikni na projekat**
@@ -32,12 +32,12 @@ Deployment je neuspešan jer nedostaju environment variables. Evo kako da ih dod
 
 #### NEXTAUTH_URL
 - **Name**: `NEXTAUTH_URL`
-- **Value**: `https://ultrax-wellness-3yzeed8r2-aleksas-projects-0b0c59c9.vercel.app`
+- **Value**: `https://ab-ams.vercel.app`
 - **Environment**: Production, Preview, Development
 
 #### NEXT_PUBLIC_APP_URL
 - **Name**: `NEXT_PUBLIC_APP_URL`
-- **Value**: `https://ultrax-wellness-3yzeed8r2-aleksas-projects-0b0c59c9.vercel.app`
+- **Value**: `https://ab-ams.vercel.app`
 - **Environment**: Production, Preview, Development
 
 #### NEXT_PUBLIC_APP_NAME
@@ -51,13 +51,13 @@ Deployment je neuspešan jer nedostaju environment variables. Evo kako da ih dod
 3. **Klikni na "Redeploy" na poslednjem deployment-u**
 
 ### 4. Test
-1. **Idi na: https://ultrax-wellness-3yzeed8r2-aleksas-projects-0b0c59c9.vercel.app**
+1. **Idi na: https://ab-ams.vercel.app**
 2. **Testiraj `/api/vercel-test` endpoint**
 3. **Testiraj login sa:**
    - **Email**: aleksacoach@gmail.com
    - **Password**: Teodor06022025
 
 ## 🎯 Tvoja aplikacija je već deploy-ovana na:
-**https://ultrax-wellness-3yzeed8r2-aleksas-projects-0b0c59c9.vercel.app**
+**https://ab-ams.vercel.app**
 
 Samo treba da dodaš environment variables i redeploy-uješ!
