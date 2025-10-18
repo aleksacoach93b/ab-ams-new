@@ -1,98 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-
-    if (!id) {
-      return NextResponse.json(
-        { message: 'Folder ID is required' },
-        { status: 400 }
-      )
-    }
-
-    const folder = await prisma.reportFolder.findUnique({
-      where: { id },
-      include: {
-        parent: true,
-        children: {
-          where: {
-            isActive: true
-          },
-          include: {
-            _count: {
-              select: {
-                reports: {
-                  where: {
-                    isActive: true
-                  }
-                },
-                children: {
-                  where: {
-                    isActive: true
-                  }
-                }
-              }
-            }
-          }
-        },
-        reports: {
-          where: {
-            isActive: true
-          },
-          include: {
-            visibility: {
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    firstName: true,
-                    lastName: true,
-                    role: true
-                  }
-                }
-              }
-            }
-          },
-          orderBy: {
-            createdAt: 'desc'
-          }
-        },
-        visibility: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                role: true
-              }
-            }
-          }
-        }
-      }
-    })
-
-    if (!folder) {
-      return NextResponse.json(
-        { message: 'Folder not found' },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json(folder)
-  } catch (error) {
-    console.error('Error fetching folder:', error)
-    return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
+import { verifyToken } from '@/lib/auth'
 
 export async function PUT(
   request: NextRequest,
@@ -100,70 +8,112 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
-    const { name, description, visibility } = body
 
-    if (!id) {
+    // Check authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
       return NextResponse.json(
-        { message: 'Folder ID is required' },
-        { status: 400 }
+        { message: 'Authentication required' },
+        { status: 401 }
       )
     }
 
-    // Update the folder
-    const folder = await prisma.reportFolder.update({
-      where: { id },
-      data: {
-        name: name || undefined,
-        description: description || undefined,
-        updatedAt: new Date()
-      },
-      include: {
-        parent: true,
-        children: true,
-        reports: true,
-        visibility: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                role: true
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Only coaches and admins can update folders
+    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
+      return NextResponse.json(
+        { message: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const { name, description, staffAccess } = body
+
+    // Check if folder exists and user has permission to edit it
+    const existingFolder = await prisma.reportFolder.findUnique({
+      where: { id }
+    })
+
+    if (!existingFolder) {
+      return NextResponse.json(
+        { message: 'Folder not found' },
+        { status: 404 }
+      )
+    }
+
+    // Only the author or admin can edit the folder
+    if (existingFolder.createdBy !== user.userId && user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { message: 'You can only edit your own folders' },
+        { status: 403 }
+      )
+    }
+
+    // Update the folder and handle staff access
+    const folder = await prisma.$transaction(async (tx) => {
+      // Update the folder
+      const updatedFolder = await tx.reportFolder.update({
+        where: { id },
+        data: {
+          name,
+          description,
+          updatedAt: new Date()
+        }
+      })
+
+      // Delete existing staff access records
+      await tx.reportFolderStaffAccess.deleteMany({
+        where: { folderId: id }
+      })
+
+      // Create new staff access records if provided
+      if (staffAccess && Array.isArray(staffAccess)) {
+        const accessData = staffAccess
+          .filter(access => access.canView)
+          .map(access => ({
+            folderId: id,
+            staffId: access.staffId,
+            canView: true
+          }))
+
+        if (accessData.length > 0) {
+          await tx.reportFolderStaffAccess.createMany({
+            data: accessData
+          })
+        }
+      }
+
+      // Return the updated folder with relations
+      return await tx.reportFolder.findUnique({
+        where: { id },
+        include: {
+          parent: true,
+          children: true,
+          reports: true,
+          visibleToStaff: {
+            include: {
+              staff: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
               }
             }
           }
         }
-      }
-    })
-
-    // Update visibility permissions if provided
-    if (visibility && Array.isArray(visibility)) {
-      // Delete existing visibility records for this folder
-      await prisma.reportVisibility.deleteMany({
-        where: {
-          folderId: id
-        }
       })
-
-      // Create new visibility records
-      for (const vis of visibility) {
-        await prisma.reportVisibility.create({
-          data: {
-            folderId: id,
-            userId: vis.userId,
-            canView: vis.canView !== undefined ? vis.canView : true,
-            canEdit: vis.canEdit !== undefined ? vis.canEdit : false,
-            canDelete: vis.canDelete !== undefined ? vis.canDelete : false
-          }
-        })
-      }
-    }
-
-    return NextResponse.json({
-      message: 'Folder updated successfully',
-      folder
     })
+
+    return NextResponse.json(folder)
   } catch (error) {
     console.error('Error updating folder:', error)
     return NextResponse.json(
@@ -180,25 +130,59 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    if (!id) {
+    // Check authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
       return NextResponse.json(
-        { message: 'Folder ID is required' },
-        { status: 400 }
+        { message: 'Authentication required' },
+        { status: 401 }
       )
     }
 
-    // Soft delete the folder
-    await prisma.reportFolder.update({
-      where: { id },
-      data: {
-        isActive: false,
-        updatedAt: new Date()
-      }
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Only coaches and admins can delete folders
+    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
+      return NextResponse.json(
+        { message: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Check if folder exists and user has permission to delete it
+    const existingFolder = await prisma.reportFolder.findUnique({
+      where: { id }
     })
 
-    return NextResponse.json({
-      message: 'Folder deleted successfully'
+    if (!existingFolder) {
+      return NextResponse.json(
+        { message: 'Folder not found' },
+        { status: 404 }
+      )
+    }
+
+    // Only the author or admin can delete the folder
+    if (existingFolder.createdBy !== user.userId && user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { message: 'You can only delete your own folders' },
+        { status: 403 }
+      )
+    }
+
+    await prisma.reportFolder.delete({
+      where: { id }
     })
+
+    return NextResponse.json(
+      { message: 'Folder deleted successfully' },
+      { status: 200 }
+    )
   } catch (error) {
     console.error('Error deleting folder:', error)
     return NextResponse.json(

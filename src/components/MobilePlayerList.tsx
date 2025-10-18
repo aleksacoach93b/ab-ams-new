@@ -39,16 +39,16 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
           const data = await response.json()
           const transformedPlayers = data.map((player: any) => ({
             id: player.id,
-            name: `${player.firstName} ${player.lastName}`,
+            name: player.name || 'Unknown Player',
             position: player.position || 'Not specified',
             dateOfBirth: player.dateOfBirth ? new Date(player.dateOfBirth).toLocaleDateString() : 'Not specified',
-            team: player.teamName || 'No team',
-            status: player.status || 'Unknown',
-            username: player.userEmail || 'No email',
+            team: player.team?.name || 'No team',
+            status: player.availabilityStatus || player.status || 'Unknown',
+            username: player.email || player.user?.email || 'No email',
             accountSetup: 'Complete',
             mobileUsed: 'Unknown',
             lastUsed: 'Unknown',
-            avatar: player.avatar,
+            avatar: player.imageUrl || player.avatar,
             age: player.dateOfBirth ? new Date().getFullYear() - new Date(player.dateOfBirth).getFullYear() : 0,
             height: player.height ? `${player.height} cm` : 'Not specified',
             weight: player.weight ? `${player.weight} kg` : 'Not specified'
@@ -70,20 +70,29 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
       return
     }
 
+    console.log('🗑️ Frontend: Starting delete for player:', playerId)
     setDeleting(playerId)
     try {
+      console.log('🗑️ Frontend: Sending DELETE request to:', `/api/players/${playerId}`)
       const response = await fetch(`/api/players/${playerId}`, {
         method: 'DELETE'
       })
       
+      console.log('🗑️ Frontend: Received response:', response.status, response.statusText)
+      
       if (response.ok) {
         setPlayers(players.filter((player: Player) => player.id !== playerId))
+        alert('Player deleted successfully')
       } else {
-        alert('Failed to delete player')
+        const errorData = await response.json()
+        console.error('Failed to delete player:', errorData)
+        console.error('Response status:', response.status)
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()))
+        alert(`Failed to delete player: ${errorData.message || errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Error deleting player:', error)
-      alert('Error deleting player')
+      alert('Error deleting player. Please try again.')
     } finally {
       setDeleting(null)
     }
@@ -132,7 +141,7 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#1e293b' }}>
       {/* Header */}
-      <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-4 py-3">
+      <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-2 sm:px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
@@ -150,7 +159,7 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
       </div>
 
       {/* Players List */}
-      <div className="px-4 py-4 pb-20">
+      <div className="px-2 sm:px-4 py-4 pb-20">
         {loading ? (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-400 mx-auto"></div>
@@ -168,14 +177,14 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-4">
             {players.map((player) => (
               <div 
                 key={player.id} 
                 className="bg-blue-900 rounded-xl shadow-lg border border-blue-800 overflow-hidden transition-all duration-300 hover:shadow-xl hover:border-blue-700"
               >
                 {/* Card Header */}
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   <div className="flex items-start justify-between">
                     {/* Avatar */}
                     <div className="flex-shrink-0">
@@ -227,7 +236,7 @@ export default function MobilePlayerList({ onAddPlayer }: MobilePlayerListProps)
                 </div>
 
                 {/* Card Body */}
-                <div className="px-4 pb-4">
+                <div className="px-3 sm:px-4 pb-4">
                   {/* Player Name */}
                   <h3 className="text-lg font-bold text-white mb-1">
                     {player.name}

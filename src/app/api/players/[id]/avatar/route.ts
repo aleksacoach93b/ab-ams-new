@@ -11,7 +11,10 @@ export async function POST(
   try {
     const { id } = await params
 
+    console.log('📸 Avatar upload request for player:', id)
+
     if (!id) {
+      console.log('❌ No player ID provided')
       return NextResponse.json(
         { message: 'Player ID is required' },
         { status: 400 }
@@ -21,7 +24,10 @@ export async function POST(
     const formData = await request.formData()
     const file = formData.get('avatar') as File
 
+    console.log('📸 File received:', file ? { name: file.name, size: file.size, type: file.type } : 'No file')
+
     if (!file) {
+      console.log('❌ No file uploaded')
       return NextResponse.json(
         { message: 'No file uploaded' },
         { status: 400 }
@@ -63,18 +69,21 @@ export async function POST(
     const buffer = Buffer.from(bytes)
     await writeFile(filePath, buffer)
 
-    // Update player avatar in database
+    // Update player imageUrl in database
     const avatarUrl = `/uploads/avatars/${fileName}`
+    console.log('📸 Updating player with imageUrl:', avatarUrl)
+    
     const updatedPlayer = await prisma.player.update({
       where: { id },
-      data: { avatar: avatarUrl },
+      data: { imageUrl: avatarUrl },
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
-        avatar: true,
+        name: true,
+        imageUrl: true,
       },
     })
+
+    console.log('✅ Avatar upload successful:', updatedPlayer)
 
     return NextResponse.json({
       message: 'Avatar uploaded successfully',
@@ -82,9 +91,19 @@ export async function POST(
       player: updatedPlayer,
     })
   } catch (error) {
-    console.error('Error uploading avatar:', error)
+    console.error('💥 Error uploading avatar:', error)
+    console.error('💥 Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    })
+    
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: 'Failed to upload avatar', 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : 'No details available'
+      },
       { status: 500 }
     )
   }
@@ -104,10 +123,10 @@ export async function DELETE(
       )
     }
 
-    // Get current player to find avatar path
+    // Get current player to find imageUrl path
     const player = await prisma.player.findUnique({
       where: { id },
-      select: { avatar: true },
+      select: { imageUrl: true },
     })
 
     if (!player) {
@@ -117,23 +136,22 @@ export async function DELETE(
       )
     }
 
-    // Remove avatar from database
+    // Remove imageUrl from database
     const updatedPlayer = await prisma.player.update({
       where: { id },
-      data: { avatar: null },
+      data: { imageUrl: null },
       select: {
         id: true,
-        firstName: true,
-        lastName: true,
-        avatar: true,
+        name: true,
+        imageUrl: true,
       },
     })
 
     // Optionally delete the file from disk
-    if (player.avatar) {
+    if (player.imageUrl) {
       try {
         const { unlink } = await import('fs/promises')
-        const filePath = join(process.cwd(), 'public', player.avatar)
+        const filePath = join(process.cwd(), 'public', player.imageUrl)
         if (existsSync(filePath)) {
           await unlink(filePath)
         }

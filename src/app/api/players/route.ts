@@ -15,7 +15,40 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(players)
+    // Transform players data to match frontend expectations
+    const transformedPlayers = players.map(player => {
+      const nameParts = player.name ? player.name.split(' ') : ['', '']
+      const firstName = nameParts[0] || ''
+      const lastName = nameParts.slice(1).join(' ') || ''
+      
+      return {
+        id: player.id,
+        firstName,
+        lastName,
+        name: player.name,
+        email: player.user?.email || '',
+        position: player.position || '',
+        status: player.status,
+        availabilityStatus: player.availabilityStatus,
+        teamId: player.teamId,
+        imageUrl: player.imageUrl,
+        phone: player.phone,
+        dateOfBirth: player.dateOfBirth,
+        nationality: player.nationality,
+        height: player.height,
+        weight: player.weight,
+        preferredFoot: player.preferredFoot,
+        jerseyNumber: player.jerseyNumber,
+        medicalInfo: player.medicalInfo,
+        emergencyContact: player.emergencyContact,
+        team: player.team,
+        user: player.user,
+        createdAt: player.createdAt,
+        updatedAt: player.updatedAt
+      }
+    })
+
+    return NextResponse.json(transformedPlayers)
   } catch (error) {
     console.error('Error fetching players:', error)
     return NextResponse.json(
@@ -46,9 +79,16 @@ export async function POST(request: NextRequest) {
       dateOfBirth,
     } = body
 
+    console.log('🔍 Extracted fields:', { name, email, password: password ? '***' : 'missing', phone, position, jerseyNumber, dateOfBirth })
+
     // Validate required fields
     if (!name || !email || !password) {
       console.log('❌ Validation failed: missing required fields')
+      console.log('📊 Field status:', { 
+        name: name ? '✅' : '❌', 
+        email: email ? '✅' : '❌', 
+        password: password ? '✅' : '❌' 
+      })
       return NextResponse.json(
         { message: 'Name, email, and password are required' },
         { status: 400 }

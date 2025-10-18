@@ -4,12 +4,13 @@ import { prisma } from '@/lib/prisma'
 // GET /api/teams/[id] - Get a specific team
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const team = await prisma.team.findUnique({
       where: {
-        id: params.id
+        id: id
       },
       include: {
         players: {
@@ -88,9 +89,10 @@ export async function GET(
 // PUT /api/teams/[id] - Update a team
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { name, description, color, logo } = body
 
@@ -103,7 +105,7 @@ export async function PUT(
 
     const team = await prisma.team.update({
       where: {
-        id: params.id
+        id: id
       },
       data: {
         name,
@@ -126,13 +128,14 @@ export async function PUT(
 // DELETE /api/teams/[id] - Delete a team
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     // Soft delete by setting isActive to false
     const team = await prisma.team.update({
       where: {
-        id: params.id
+        id: id
       },
       data: {
         isActive: false

@@ -1,53 +1,118 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-// import { writeFile, mkdir } from 'fs/promises'
-// import { join } from 'path'
-// import { existsSync } from 'fs'
+import { verifyToken } from '@/lib/auth'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
+import { logFileAccess, getClientInfo } from '@/lib/fileAccessLogger'
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-    const folderId = searchParams.get('folderId')
-
-    if (!userId) {
+    // Check authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
       return NextResponse.json(
-        { message: 'User ID is required' },
-        { status: 400 }
+        { message: 'Authentication required' },
+        { status: 401 }
       )
     }
 
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Only coaches and admins can view reports
+    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
+      return NextResponse.json(
+        { message: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    // Get query parameters
+    const { searchParams } = new URL(request.url)
+    const folderId = searchParams.get('folderId')
+    const limit = parseInt(searchParams.get('limit') || '20')
+    const offset = parseInt(searchParams.get('offset') || '0')
+
+    // Build where clause for folder filtering
     const whereClause: any = {
       isActive: true
     }
-
-    if (folderId && folderId.trim() !== '') {
+    
+    if (folderId) {
       whereClause.folderId = folderId
     } else {
-      // When no folderId is provided, only show reports at root level (no folder assigned)
+      // If no folderId specified, get reports not in any folder (root level)
       whereClause.folderId = null
     }
 
-    // Get reports that the user has access to
+    // Fetch reports
     const reports = await prisma.report.findMany({
       where: whereClause,
       include: {
-        folder: true,
-        accesses: {
-          where: {
-            userId: userId
-          },
-          orderBy: {
-            accessedAt: 'desc'
+        folder: {
+          include: {
+            visibleToStaff: {
+              include: {
+                staff: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true
+                  }
+                }
+              }
+            }
           }
         }
       },
       orderBy: {
         createdAt: 'desc'
-      }
+      },
+      take: limit,
+      skip: offset
     })
 
-    return NextResponse.json(reports)
+    // Filter reports based on user role and folder access
+    let filteredReports = reports
+    if (user.role === 'STAFF') {
+      // Get the staff member for this user
+      const staffMember = await prisma.staff.findUnique({
+        where: { userId: user.userId }
+      })
+      
+      if (staffMember) {
+        // Staff can only see reports from folders they have access to
+        filteredReports = reports.filter(report => 
+          report.folder && report.folder.visibleToStaff.some(access => 
+            access.staffId === staffMember.id && access.canView
+          )
+        )
+      } else {
+        filteredReports = []
+      }
+    }
+
+    // Log file access for each report viewed
+    const { ipAddress, userAgent } = getClientInfo(request)
+    for (const report of filteredReports) {
+      await logFileAccess({
+        userId: user.userId,
+        fileType: 'REPORT',
+        fileId: report.id,
+        fileName: report.fileName,
+        action: 'VIEW',
+        ipAddress,
+        userAgent
+      })
+    }
+
+    return NextResponse.json({ reports: filteredReports })
   } catch (error) {
     console.error('Error fetching reports:', error)
     return NextResponse.json(
@@ -59,19 +124,44 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json(
+        { message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Only coaches and admins can create reports
+    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
+      return NextResponse.json(
+        { message: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
     const formData = await request.formData()
-    const title = formData.get('title') as string
-    const description = formData.get('description') as string
+    const name = formData.get('name') as string
+    const descriptionRaw = formData.get('description') as string
+    const description = descriptionRaw && descriptionRaw.trim() !== '' && descriptionRaw !== 'undefined' ? descriptionRaw : null
     const folderIdRaw = formData.get('folderId') as string
-    const createdBy = formData.get('createdBy') as string
     const file = formData.get('file') as File
 
     // Convert 'null' string to actual null for root level reports
     const folderId = folderIdRaw === 'null' || folderIdRaw === '' ? null : folderIdRaw
 
-    if (!title || !createdBy || !file) {
+    if (!name || !file) {
       return NextResponse.json(
-        { message: 'Title, created by, and file are required' },
+        { message: 'Name and file are required' },
         { status: 400 }
       )
     }
@@ -103,10 +193,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Create uploads directory if it doesn't exist
-    const { writeFile, mkdir } = await import('fs/promises')
-    const { join } = await import('path')
-    const { existsSync } = await import('fs')
-    
     const uploadsDir = join(process.cwd(), 'public', 'uploads', 'reports')
     if (!existsSync(uploadsDir)) {
       await mkdir(uploadsDir, { recursive: true })
@@ -123,60 +209,31 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(bytes)
     await writeFile(filePath, buffer)
 
+    // No thumbnail generation - keep it simple
+    const thumbnailUrl = null
+
     // Create report record
     const fileUrl = `/uploads/reports/${fileName}`
     
+    // Create the report
     const report = await prisma.report.create({
       data: {
-        name: title,
+        name: name,
+        description: description || null,
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,
         fileUrl,
+        thumbnailUrl,
         folderId,
-        createdBy,
+        createdBy: user.userId,
       },
       include: {
         folder: true
       }
     })
 
-    // Create initial access record for the creator
-    await prisma.reportAccess.create({
-      data: {
-        reportId: report.id,
-        userId: createdBy,
-        action: 'created'
-      }
-    })
-
-    // Automatically share with staff who have canViewReports permission
-    const staffWithReportsPermission = await prisma.staff.findMany({
-      where: {
-        canViewReports: true,
-      },
-      select: {
-        userId: true
-      }
-    })
-
-    // Create access entries for all staff with reports permission (excluding the creator)
-    for (const staff of staffWithReportsPermission) {
-      if (staff.userId !== createdBy) {
-        await prisma.reportAccess.create({
-          data: {
-            reportId: report.id,
-            userId: staff.userId,
-            action: 'shared'
-          }
-        })
-      }
-    }
-
-    return NextResponse.json({
-      message: 'Report uploaded successfully',
-      report
-    })
+    return NextResponse.json(report, { status: 201 })
   } catch (error) {
     console.error('Error uploading report:', error)
     return NextResponse.json(

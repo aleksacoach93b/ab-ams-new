@@ -4,10 +4,12 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Lock, Mail, Calendar, Heart, Activity, Users, Target, Trophy, Zap } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 export default function LoginPage() {
   const router = useRouter()
   const { colorScheme, theme } = useTheme()
+  const { login } = useAuth()
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -48,9 +50,8 @@ export default function LoginPage() {
       if (response.ok) {
         console.log('Login successful, storing user data and redirecting...')
         
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify(data.user))
-        localStorage.setItem('token', data.token)
+        // Use AuthContext to store user data and token
+        await login(data.user, data.token)
         
         // Also set token in cookie for middleware
         document.cookie = `token=${data.token}; path=/; max-age=${24 * 60 * 60}; SameSite=Lax`

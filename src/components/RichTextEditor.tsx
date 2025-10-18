@@ -126,15 +126,15 @@ export default function RichTextEditor({
   }
 
   const toolbarButtons = [
-    { icon: Bold, command: 'bold', title: 'Bold' },
-    { icon: Italic, command: 'italic', title: 'Italic' },
-    { icon: Underline, command: 'underline', title: 'Underline' },
-    { icon: Strikethrough, command: 'strikeThrough', title: 'Strikethrough' },
-    { icon: Quote, command: 'formatBlock', value: 'blockquote', title: 'Quote' },
-    { icon: List, command: 'insertUnorderedList', title: 'Bullet List' },
-    { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List' },
-    { icon: Code, command: 'formatBlock', value: 'pre', title: 'Code Block' },
-    { icon: Minus, command: 'insertHorizontalRule', title: 'Horizontal Rule' }
+    { icon: Bold, command: 'bold', title: 'Bold', key: 'bold' },
+    { icon: Italic, command: 'italic', title: 'Italic', key: 'italic' },
+    { icon: Underline, command: 'underline', title: 'Underline', key: 'underline' },
+    { icon: Strikethrough, command: 'strikeThrough', title: 'Strikethrough', key: 'strikethrough' },
+    { icon: Quote, command: 'formatBlock', value: 'blockquote', title: 'Quote', key: 'quote' },
+    { icon: List, command: 'insertUnorderedList', title: 'Bullet List', key: 'bullet-list' },
+    { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List', key: 'numbered-list' },
+    { icon: Code, command: 'formatBlock', value: 'pre', title: 'Code Block', key: 'code-block' },
+    { icon: Minus, command: 'insertHorizontalRule', title: 'Horizontal Rule', key: 'horizontal-rule' }
   ]
 
   return (
@@ -153,9 +153,9 @@ export default function RichTextEditor({
           backgroundColor: colorScheme.background
         }}
       >
-        {toolbarButtons.map(({ icon: Icon, command, value, title }) => (
+        {toolbarButtons.map(({ icon: Icon, command, value, title, key }) => (
           <button
-            key={command}
+            key={key}
             onClick={() => execCommand(command, value)}
             className="p-2 rounded transition-colors hover:opacity-70"
             style={{ color: colorScheme.textSecondary }}

@@ -10,7 +10,7 @@ const getEventColor = (type: string) => {
     case 'MEDICAL': return '#10B981' // Green
     case 'RECOVERY': return '#8B5CF6' // Purple
     case 'MEAL': return '#F97316' // Orange-red
-    case 'COFFEE': return '#92400E' // Brown
+    case 'REST': return '#6366F1' // Indigo
     default: return '#6B7280' // Gray
   }
 }
@@ -26,14 +26,26 @@ export async function GET(request: NextRequest) {
     if (userId && userRole) {
       // Filter events based on user participation
       if (userRole === 'PLAYER') {
+        // First, find the player by userId or by email
+        const player = await prisma.player.findFirst({
+          where: {
+            OR: [
+              { userId: userId },
+              { user: { id: userId } }
+            ]
+          }
+        })
+
+        if (!player) {
+          return NextResponse.json([])
+        }
+
         // Find events where the player is a participant
         events = await prisma.event.findMany({
           where: {
             participants: {
               some: {
-                player: {
-                  userId: userId
-                }
+                playerId: player.id
               }
             }
           },
@@ -110,7 +122,13 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    return NextResponse.json(events)
+    // Transform events to map iconName to icon for frontend compatibility
+    const transformedEvents = events.map(event => ({
+      ...event,
+      icon: event.iconName || 'Calendar' // Map iconName to icon
+    }))
+
+    return NextResponse.json(transformedEvents)
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json(
@@ -122,7 +140,11 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
+    console.log('📝 Event update request received')
+    
     const body = await request.json()
+    console.log('📝 Request body:', body)
+    
     const {
       id,
       title,
@@ -139,8 +161,16 @@ export async function PUT(request: NextRequest) {
       icon,
     } = body
 
+    console.log('🔍 Extracted fields:', { id, title, date, type, icon })
+
     // Validate required fields
     if (!id || !title || !date) {
+      console.log('❌ Validation failed: missing required fields')
+      console.log('📊 Field status:', { 
+        id: id ? '✅' : '❌', 
+        title: title ? '✅' : '❌', 
+        date: date ? '✅' : '❌' 
+      })
       return NextResponse.json(
         { message: 'ID, title and date are required' },
         { status: 400 }
@@ -155,6 +185,8 @@ export async function PUT(request: NextRequest) {
     const startDate = new Date(year, month - 1, day, startHour, startMin, 0)
     const endDate = new Date(year, month - 1, day, endHour, endMin, 0)
 
+    console.log('🔄 Updating event in database...')
+    
     // Update event
     const event = await prisma.event.update({
       where: { id },
@@ -170,8 +202,7 @@ export async function PUT(request: NextRequest) {
         isAllDay: isAllDay || false,
         allowPlayerCreation: allowPlayerCreation || false,
         allowPlayerReschedule: allowPlayerReschedule || false,
-        color: getEventColor(type || 'TRAINING'),
-        icon: icon || 'Calendar',
+        iconName: icon || 'Dumbbell', // Use iconName field from schema
       },
       include: {
         location: true,
@@ -180,14 +211,32 @@ export async function PUT(request: NextRequest) {
       },
     })
 
+    console.log('✅ Event updated successfully:', event.id, event.title, event.iconName)
+
+    // Transform event to map iconName to icon for frontend compatibility
+    const transformedEvent = {
+      ...event,
+      icon: event.iconName || 'Calendar'
+    }
+
     return NextResponse.json(
-      { message: 'Event updated successfully', event },
+      { message: 'Event updated successfully', event: transformedEvent },
       { status: 200 }
     )
   } catch (error) {
-    console.error('Error updating event:', error)
+    console.error('💥 Error updating event:', error)
+    console.error('💥 Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    })
+    
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: 'Failed to update event', 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : 'No details available'
+      },
       { status: 500 }
     )
   }
@@ -208,6 +257,7 @@ export async function POST(request: NextRequest) {
       startTime = '10:00',
       endTime = '11:00',
       location = '',
+      icon, // Icon from frontend
       selectedPlayers = [], // Array of player IDs
       selectedStaff = [], // Array of staff IDs
     } = body
@@ -228,22 +278,40 @@ export async function POST(request: NextRequest) {
       startTime,
       endTime,
       location,
+      icon,
       selectedPlayers,
       selectedStaff
     })
+
+    // Set appropriate default icon based on event type
+    const getDefaultIcon = (eventType: string) => {
+      switch (eventType.toUpperCase()) {
+        case 'TRAINING': return 'dumbbell-realistic'
+        case 'MATCH': return 'football-ball-realistic'
+        case 'MEETING': return 'meeting-new'
+        case 'MEDICAL': return 'blood-sample-final'
+        case 'RECOVERY': return 'recovery-new'
+        case 'MEAL': return 'meal-plate'
+        case 'REST': return 'bed-time'
+        case 'OTHER': return 'stopwatch-whistle'
+        default: return 'dumbbell-realistic'
+      }
+    }
+
+    const finalEventType = (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
+      ? type.toUpperCase() as EventType 
+      : EventType.TRAINING
 
     // Create event first without participants
     const eventData = {
       title,
       description,
-      type: (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
-        ? type.toUpperCase() as EventType 
-        : EventType.TRAINING,
+      type: finalEventType,
       date: new Date(date),
       startTime: startTime || '00:00',
       endTime: endTime || '23:59',
       location: location || null,
-      iconName: type || 'Calendar',
+      iconName: icon || getDefaultIcon(finalEventType), // Use selected icon or appropriate default
     }
 
     const event = await prisma.event.create({
@@ -290,8 +358,14 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Transform event to map iconName to icon for frontend compatibility
+    const transformedEvent = {
+      ...completeEvent,
+      icon: completeEvent?.iconName || 'Calendar'
+    }
+
     return NextResponse.json(
-      { message: 'Event created successfully', event: completeEvent },
+      { message: 'Event created successfully', event: transformedEvent },
       { status: 201 }
     )
   } catch (error) {

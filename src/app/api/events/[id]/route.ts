@@ -8,6 +8,9 @@ const getEventColor = (type: string) => {
     case 'MEETING': return '#3B82F6' // Blue
     case 'MEDICAL': return '#10B981' // Green
     case 'RECOVERY': return '#8B5CF6' // Purple
+    case 'MEAL': return '#F97316' // Orange-Red (distinct from training)
+    case 'REST': return '#6366F1' // Indigo
+    case 'OTHER': return '#6B7280' // Gray
     default: return '#6B7280' // Gray
   }
 }
@@ -56,6 +59,8 @@ export async function PUT(
   try {
     const { id: eventId } = await params
     const body = await request.json()
+    console.log('🔄 Event update request:', { eventId, body })
+    
     const {
       title,
       description,
@@ -64,49 +69,134 @@ export async function PUT(
       startTime,
       endTime,
       location,
+      icon,
+      selectedPlayers = [],
+      selectedStaff = [],
     } = body
 
     // Validate required fields
     if (!title || !date) {
+      console.log('❌ Validation failed: missing title or date')
       return NextResponse.json(
         { message: 'Title and date are required' },
         { status: 400 }
       )
     }
 
-    // Update event
-    const event = await prisma.event.update({
-      where: { id: eventId },
-      data: {
-        title,
-        description,
-        type: (type && ['TRAINING', 'MATCH', 'MEETING', 'RECOVERY', 'MEAL', 'COFFEE', 'OTHER'].includes(type.toUpperCase())) 
-          ? type.toUpperCase() 
-          : 'TRAINING',
-        date: new Date(date),
-        startTime: startTime || '00:00',
-        endTime: endTime || '23:59',
-        location: location || null,
-        iconName: type || 'Calendar',
-      },
-      include: {
-        participants: {
-          include: {
-            player: true,
-            staff: true,
+    console.log('🔄 Updating event with participants:', { selectedPlayers, selectedStaff })
+
+    // Update event with participants in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // First, delete existing participants
+      await tx.eventParticipant.deleteMany({
+        where: { eventId: eventId }
+      })
+      console.log('✅ Deleted existing participants')
+
+      // Set appropriate default icon based on event type
+      const getDefaultIcon = (eventType: string) => {
+        switch (eventType.toUpperCase()) {
+          case 'TRAINING': return 'dumbbell-realistic'
+          case 'MATCH': return 'football-ball-realistic'
+          case 'MEETING': return 'meeting-new'
+          case 'MEDICAL': return 'blood-sample-final'
+          case 'RECOVERY': return 'recovery-new'
+          case 'MEAL': return 'meal-plate'
+          case 'REST': return 'bed-time'
+          case 'OTHER': return 'stopwatch-whistle'
+          default: return 'dumbbell-realistic'
+        }
+      }
+
+      const finalEventType = (type && ['TRAINING', 'MATCH', 'MEETING', 'RECOVERY', 'MEAL', 'REST', 'OTHER'].includes(type.toUpperCase())) 
+        ? type.toUpperCase() 
+        : 'TRAINING'
+
+      // Update the event
+      const event = await tx.event.update({
+        where: { id: eventId },
+        data: {
+          title,
+          description,
+          type: finalEventType,
+          date: new Date(date),
+          startTime: startTime || '00:00',
+          endTime: endTime || '23:59',
+          location: location || null,
+          iconName: icon || getDefaultIcon(finalEventType),
+        }
+      })
+      console.log('✅ Updated event:', event.id)
+
+      // Add new participants
+      const participants = []
+      
+      // Add players
+      for (const playerId of selectedPlayers) {
+        const participant = await tx.eventParticipant.create({
+          data: {
+            eventId: eventId,
+            playerId: playerId,
+            staffId: null,
+          }
+        })
+        participants.push(participant)
+      }
+      console.log('✅ Added players:', selectedPlayers.length)
+
+      // Add staff
+      for (const staffId of selectedStaff) {
+        const participant = await tx.eventParticipant.create({
+          data: {
+            eventId: eventId,
+            playerId: null,
+            staffId: staffId,
+          }
+        })
+        participants.push(participant)
+      }
+      console.log('✅ Added staff:', selectedStaff.length)
+
+      // Fetch the complete event with participants
+      const completeEvent = await tx.event.findUnique({
+        where: { id: eventId },
+        include: {
+          participants: {
+            include: {
+              player: true,
+              staff: true,
+            }
           }
         }
-      },
+      })
+
+      return completeEvent
     })
 
+    // Transform event to map iconName to icon for frontend compatibility
+    const transformedEvent = {
+      ...result,
+      icon: result.iconName || 'Calendar'
+    }
+
+    console.log('✅ Event updated successfully with participants:', transformedEvent.participants.length)
+
     return NextResponse.json(
-      { message: 'Event updated successfully', event },
+      { message: 'Event updated successfully', event: transformedEvent },
       { status: 200 }
     )
   } catch (error) {
-    console.error('Error updating event:', error)
+    console.error('❌ Error updating event:', error)
+    console.error('❌ Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    })
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: 'Failed to update event', 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }

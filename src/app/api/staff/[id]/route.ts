@@ -56,9 +56,28 @@ export async function PUT(
       password,
       phone,
       position,
+      // Reports permissions
       canViewReports,
       canEditReports,
-      canDeleteReports
+      canDeleteReports,
+      // Events permissions
+      canCreateEvents,
+      canEditEvents,
+      canDeleteEvents,
+      // Players permissions
+      canViewAllPlayers,
+      canEditPlayers,
+      canDeletePlayers,
+      canAddPlayerMedia,
+      canEditPlayerMedia,
+      canDeletePlayerMedia,
+      canAddPlayerNotes,
+      canEditPlayerNotes,
+      canDeletePlayerNotes,
+      // System permissions
+      canViewCalendar,
+      canViewDashboard,
+      canManageStaff
     } = body
 
     // Get existing staff member
@@ -97,9 +116,28 @@ export async function PUT(
         email,
         phone,
         position,
+        // Reports permissions
         canViewReports: canViewReports || false,
         canEditReports: canEditReports || false,
-        canDeleteReports: canDeleteReports || false
+        canDeleteReports: canDeleteReports || false,
+        // Events permissions
+        canCreateEvents: canCreateEvents || false,
+        canEditEvents: canEditEvents || false,
+        canDeleteEvents: canDeleteEvents || false,
+        // Players permissions
+        canViewAllPlayers: canViewAllPlayers || false,
+        canEditPlayers: canEditPlayers || false,
+        canDeletePlayers: canDeletePlayers || false,
+        canAddPlayerMedia: canAddPlayerMedia || false,
+        canEditPlayerMedia: canEditPlayerMedia || false,
+        canDeletePlayerMedia: canDeletePlayerMedia || false,
+        canAddPlayerNotes: canAddPlayerNotes || false,
+        canEditPlayerNotes: canEditPlayerNotes || false,
+        canDeletePlayerNotes: canDeletePlayerNotes || false,
+        // System permissions
+        canViewCalendar: canViewCalendar || false,
+        canViewDashboard: canViewDashboard || false,
+        canManageStaff: canManageStaff || false
       },
       include: {
         user: {

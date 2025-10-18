@@ -18,6 +18,14 @@ export async function GET(request: NextRequest) {
     // Fetch login logs with pagination
     const loginLogs = await prisma.loginLog.findMany({
       where: whereClause,
+      include: {
+        user: {
+          include: {
+            player: true,
+            staff: true
+          }
+        }
+      },
       orderBy: {
         createdAt: 'desc'
       },

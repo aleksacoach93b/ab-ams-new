@@ -34,9 +34,8 @@ export async function PUT(
         author: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
+            name: true,
+            email: true
           }
         }
       }

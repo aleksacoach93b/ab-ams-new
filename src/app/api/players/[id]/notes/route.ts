@@ -21,9 +21,8 @@ export async function GET(
         author: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
+            name: true,
+            email: true
           }
         }
       },
@@ -106,9 +105,8 @@ export async function POST(
         author: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
-            avatar: true
+            name: true,
+            email: true
           }
         }
       }

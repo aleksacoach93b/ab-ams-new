@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Edit, Trash2, User, Mail, Phone, Calendar, Shield, Eye, EyeOff } from 'lucide-react'
+import { Plus, Edit, Trash2, User, Mail, Phone, Calendar, Shield, Eye, EyeOff, Upload, Camera, X } from 'lucide-react'
 import { useTheme } from '@/contexts/ThemeContext'
 
 interface Staff {
@@ -14,18 +14,20 @@ interface Staff {
   position?: string
   department?: string
   experience?: number
-  isActive: boolean
+  imageUrl?: string
   createdAt: string
   user: {
     id: string
     email: string
     firstName: string
     lastName: string
-    isActive: boolean
     lastLoginAt?: string
     createdAt: string
   }
   // Permissions
+  canViewReports: boolean
+  canEditReports: boolean
+  canDeleteReports: boolean
   canCreateEvents: boolean
   canEditEvents: boolean
   canDeleteEvents: boolean
@@ -41,7 +43,6 @@ interface Staff {
   canViewCalendar: boolean
   canViewDashboard: boolean
   canManageStaff: boolean
-  canViewReports: boolean
 }
 
 export default function StaffPage() {
@@ -139,7 +140,7 @@ export default function StaffPage() {
           </p>
         </div>
         <button
-          onClick={() => setShowAddModal(true)}
+          onClick={() => router.push('/dashboard/staff/new')}
           className="flex items-center space-x-2 px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
@@ -158,12 +159,21 @@ export default function StaffPage() {
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div 
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                  style={{ backgroundColor: colorScheme.primary }}
-                >
-                  {staffMember.firstName.charAt(0)}{staffMember.lastName.charAt(0)}
-                </div>
+                {staffMember.imageUrl ? (
+                  <img
+                    src={staffMember.imageUrl}
+                    alt={`${staffMember.firstName} ${staffMember.lastName}`}
+                    className="w-12 h-12 rounded-full object-cover border-2"
+                    style={{ borderColor: colorScheme.border }}
+                  />
+                ) : (
+                  <div 
+                    className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
+                    style={{ backgroundColor: colorScheme.primary }}
+                  >
+                    {staffMember.firstName.charAt(0)}{staffMember.lastName.charAt(0)}
+                  </div>
+                )}
                 <div>
                   <h3 className="font-semibold" style={{ color: colorScheme.text }}>
                     {staffMember.firstName} {staffMember.lastName}
@@ -217,16 +227,8 @@ export default function StaffPage() {
               )}
             </div>
 
-            {/* Status and Permissions */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <div 
-                  className={`w-2 h-2 rounded-full ${staffMember.isActive ? 'bg-green-500' : 'bg-gray-400'}`}
-                ></div>
-                <span className="text-sm" style={{ color: colorScheme.textSecondary }}>
-                  {staffMember.isActive ? 'Active' : 'Inactive'}
-                </span>
-              </div>
+            {/* Permissions */}
+            <div className="flex items-center justify-end">
               <div className="flex items-center space-x-1">
                 <Shield className="h-4 w-4" style={{ color: colorScheme.textSecondary }} />
                 <span className="text-sm" style={{ color: colorScheme.textSecondary }}>
@@ -249,7 +251,7 @@ export default function StaffPage() {
             Add your first staff member to get started
           </p>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => router.push('/dashboard/staff/new')}
             className="px-4 py-2 rounded-lg text-white bg-red-600 hover:bg-red-700 transition-colors"
           >
             Add Staff Member
@@ -288,6 +290,8 @@ function StaffModal({
 }) {
   const { colorScheme } = useTheme()
   const [loading, setLoading] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [removingAvatar, setRemovingAvatar] = useState(false)
   const [formData, setFormData] = useState({
     firstName: staff?.firstName || '',
     lastName: staff?.lastName || '',
@@ -300,9 +304,15 @@ function StaffModal({
     experience: staff?.experience?.toString() || '',
     certifications: staff?.certifications ? JSON.parse(staff.certifications) : [],
     permissions: {
+      // Reports permissions
+      canViewReports: staff?.canViewReports || false,
+      canEditReports: staff?.canEditReports || false,
+      canDeleteReports: staff?.canDeleteReports || false,
+      // Events permissions
       canCreateEvents: staff?.canCreateEvents || false,
       canEditEvents: staff?.canEditEvents || false,
       canDeleteEvents: staff?.canDeleteEvents || false,
+      // Players permissions
       canViewAllPlayers: staff?.canViewAllPlayers !== undefined ? staff.canViewAllPlayers : true,
       canEditPlayers: staff?.canEditPlayers || false,
       canDeletePlayers: staff?.canDeletePlayers || false,
@@ -312,10 +322,10 @@ function StaffModal({
       canAddPlayerNotes: staff?.canAddPlayerNotes || false,
       canEditPlayerNotes: staff?.canEditPlayerNotes || false,
       canDeletePlayerNotes: staff?.canDeletePlayerNotes || false,
+      // System permissions
       canViewCalendar: staff?.canViewCalendar !== undefined ? staff.canViewCalendar : true,
       canViewDashboard: staff?.canViewDashboard !== undefined ? staff.canViewDashboard : true,
-      canManageStaff: staff?.canManageStaff || false,
-      canViewReports: staff?.canViewReports || false
+      canManageStaff: staff?.canManageStaff || false
     }
   })
 
@@ -327,12 +337,20 @@ function StaffModal({
       const url = staff ? `/api/staff/${staff.id}` : '/api/staff'
       const method = staff ? 'PUT' : 'POST'
 
+      // Flatten the permissions for the API
+      const apiData = {
+        ...formData,
+        ...formData.permissions,
+        name: `${formData.firstName} ${formData.lastName}`.trim()
+      }
+      delete apiData.permissions // Remove the nested permissions object
+
       const response = await fetch(url, {
         method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiData),
       })
 
       if (response.ok) {
@@ -368,6 +386,81 @@ function StaffModal({
     }
   }
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!staff || !e.target.files?.[0]) return
+
+    const file = e.target.files[0]
+    setUploadingAvatar(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('avatar', file)
+
+      console.log('📸 Uploading staff avatar:', { staffId: staff.id, fileName: file.name })
+
+      const response = await fetch(`/api/staff/${staff.id}/avatar`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Staff avatar uploaded successfully:', result)
+        // Update the staff object with new imageUrl
+        if (staff) {
+          staff.imageUrl = result.imageUrl
+        }
+        onSave() // Refresh the staff list
+      } else {
+        const errorData = await response.json()
+        console.error('❌ Failed to upload staff avatar:', errorData)
+        alert(`Failed to upload avatar: ${errorData.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('❌ Error uploading staff avatar:', error)
+      alert('Error uploading avatar')
+    } finally {
+      setUploadingAvatar(false)
+      // Reset the file input
+      e.target.value = ''
+    }
+  }
+
+  const handleAvatarRemove = async () => {
+    if (!staff || !staff.imageUrl) return
+
+    if (!confirm('Are you sure you want to remove this avatar?')) return
+
+    setRemovingAvatar(true)
+
+    try {
+      console.log('🗑️ Removing staff avatar:', staff.id)
+
+      const response = await fetch(`/api/staff/${staff.id}/avatar`, {
+        method: 'DELETE'
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        console.log('✅ Staff avatar removed successfully:', result)
+        // Update the staff object
+        if (staff) {
+          staff.imageUrl = null
+        }
+        onSave() // Refresh the staff list
+      } else {
+        const errorData = await response.json()
+        console.error('❌ Failed to remove staff avatar:', errorData)
+        alert(`Failed to remove avatar: ${errorData.message || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('❌ Error removing staff avatar:', error)
+      alert('Error removing avatar')
+    } finally {
+      setRemovingAvatar(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div 
@@ -389,6 +482,74 @@ function StaffModal({
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {/* Avatar Upload Section - Only for existing staff */}
+            {staff && (
+              <div>
+                <h3 className="text-lg font-semibold mb-4" style={{ color: colorScheme.text }}>
+                  Profile Picture
+                </h3>
+                <div className="flex items-center space-x-6">
+                  {/* Current Avatar */}
+                  <div className="relative">
+                    {staff.imageUrl ? (
+                      <div className="relative">
+                        <img
+                          src={staff.imageUrl}
+                          alt={`${staff.firstName} ${staff.lastName}`}
+                          className="w-20 h-20 rounded-full object-cover border-2"
+                          style={{ borderColor: colorScheme.border }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAvatarRemove}
+                          disabled={removingAvatar}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors disabled:opacity-50"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div 
+                        className="w-20 h-20 rounded-full flex items-center justify-center border-2"
+                        style={{ 
+                          backgroundColor: colorScheme.surface,
+                          borderColor: colorScheme.border 
+                        }}
+                      >
+                        <User className="h-8 w-8" style={{ color: colorScheme.textSecondary }} />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Upload Controls */}
+                  <div className="flex flex-col space-y-2">
+                    <label
+                      htmlFor="avatar-upload"
+                      className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors"
+                      style={{ 
+                        backgroundColor: colorScheme.primary,
+                        color: 'white'
+                      }}
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      {uploadingAvatar ? 'Uploading...' : 'Upload Photo'}
+                    </label>
+                    <input
+                      id="avatar-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      disabled={uploadingAvatar}
+                      className="hidden"
+                    />
+                    <p className="text-xs" style={{ color: colorScheme.textSecondary }}>
+                      JPG, PNG up to 5MB
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Basic Information */}
             <div>
               <h3 className="text-lg font-semibold mb-4" style={{ color: colorScheme.text }}>
@@ -569,6 +730,49 @@ function StaffModal({
                 Permissions
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Reports Permissions */}
+                <div className="space-y-3">
+                  <h4 className="font-medium" style={{ color: colorScheme.text }}>
+                    Reports
+                  </h4>
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      name="canViewReports"
+                      checked={formData.permissions.canViewReports}
+                      onChange={handleInputChange}
+                      className="rounded"
+                    />
+                    <span className="text-sm" style={{ color: colorScheme.text }}>
+                      View Reports
+                    </span>
+                  </label>
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      name="canEditReports"
+                      checked={formData.permissions.canEditReports}
+                      onChange={handleInputChange}
+                      className="rounded"
+                    />
+                    <span className="text-sm" style={{ color: colorScheme.text }}>
+                      Edit Reports
+                    </span>
+                  </label>
+                  <label className="flex items-center space-x-3">
+                    <input
+                      type="checkbox"
+                      name="canDeleteReports"
+                      checked={formData.permissions.canDeleteReports}
+                      onChange={handleInputChange}
+                      className="rounded"
+                    />
+                    <span className="text-sm" style={{ color: colorScheme.text }}>
+                      Delete Reports
+                    </span>
+                  </label>
+                </div>
+
                 {/* Event Permissions */}
                 <div className="space-y-3">
                   <h4 className="font-medium" style={{ color: colorScheme.text }}>

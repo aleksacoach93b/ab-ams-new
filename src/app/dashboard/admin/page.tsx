@@ -10,15 +10,29 @@ interface LoginLog {
   userId: string
   email: string
   role: string
-  firstName: string
-  lastName: string
-  avatar?: string
   ipAddress: string
   userAgent: string
   location?: string
   success: boolean
   failureReason?: string
   createdAt: string
+  user: {
+    id: string
+    name?: string
+    email: string
+    role: string
+    player?: {
+      id: string
+      name: string
+      imageUrl?: string
+    }
+    staff?: {
+      id: string
+      firstName: string
+      lastName: string
+      avatar?: string
+    }
+  }
 }
 
 interface LoginStats {
@@ -30,28 +44,21 @@ interface LoginStats {
 
 interface FileAnalytics {
   id: string
-  reportId: string
   userId: string
+  fileType: string
+  fileId?: string
+  fileName?: string
   action: string
   ipAddress?: string
   userAgent?: string
   createdAt: string
   user: {
     id: string
-    firstName: string
-    lastName: string
+    name: string
     email: string
     role: string
-  }
-  report: {
-    id: string
-    title: string
-    fileName: string
-    fileType: string
-    folder?: {
-      id: string
-      name: string
-    }
+    playerData?: any
+    staffData?: any
   }
 }
 
@@ -76,7 +83,7 @@ const adminSections = [
     description: 'Configure app settings and preferences',
     icon: Settings,
     href: '/dashboard/admin/settings',
-    color: 'bg-gray-500'
+    color: 'bg-slate-500'
   }
 ]
 
@@ -133,11 +140,29 @@ export default function AdminPage() {
 
   const fetchAnalyticsData = async () => {
     try {
-      const response = await fetch('/api/analytics/file-access?limit=20')
+      const response = await fetch('/api/admin/file-access?limit=20')
       if (response.ok) {
         const data = await response.json()
-        setFileAnalytics(data.analytics)
-        setAnalyticsSummary(data.summary)
+        setFileAnalytics(data.fileAccessLogs)
+        
+        // Calculate summary from the logs
+        const totalViews = data.fileAccessLogs.filter((log: any) => log.action === 'VIEW').length
+        const totalDownloads = data.fileAccessLogs.filter((log: any) => log.action === 'DOWNLOAD').length
+        const uniqueUsers = new Set(data.fileAccessLogs.map((log: any) => log.userId)).size
+        const uniqueReports = new Set(data.fileAccessLogs.filter((log: any) => log.fileType === 'REPORT').map((log: any) => log.fileId)).size
+        const recentActivity = data.fileAccessLogs.filter((log: any) => {
+          const logTime = new Date(log.createdAt)
+          const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
+          return logTime > oneDayAgo
+        }).length
+        
+        setAnalyticsSummary({
+          totalViews,
+          totalDownloads,
+          uniqueUsers,
+          uniqueReports,
+          recentActivity
+        })
       }
     } catch (error) {
       console.error('Error fetching analytics data:', error)
@@ -165,6 +190,48 @@ export default function AdminPage() {
 
   const getLoginStatusIcon = (success: boolean) => {
     return success ? Shield : AlertTriangle
+  }
+
+  const getUserDisplayName = (log: LoginLog) => {
+    if (log.user.player) {
+      return log.user.player.name
+    }
+    if (log.user.staff) {
+      return `${log.user.staff.firstName} ${log.user.staff.lastName}`
+    }
+    return log.user.name || log.email
+  }
+
+  const getUserInitials = (log: LoginLog) => {
+    if (log.user.player) {
+      const name = log.user.player.name
+      const parts = name.split(' ')
+      return parts.length >= 2 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : name[0]
+    }
+    if (log.user.staff) {
+      const firstName = log.user.staff.firstName || ''
+      const lastName = log.user.staff.lastName || ''
+      if (firstName && lastName) {
+        return `${firstName[0]}${lastName[0]}`
+      }
+      // Fallback to staff name if firstName/lastName not available
+      const staffName = log.user.staff.name || ''
+      const parts = staffName.split(' ')
+      return parts.length >= 2 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : staffName[0] || 'S'
+    }
+    const name = log.user.name || log.email
+    const parts = name.split(' ')
+    return parts.length >= 2 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : name[0]
+  }
+
+  const getUserAvatar = (log: LoginLog) => {
+    if (log.user.player?.imageUrl) {
+      return log.user.player.imageUrl
+    }
+    if (log.user.staff?.avatar) {
+      return log.user.staff.avatar
+    }
+    return null
   }
 
   return (
@@ -290,10 +357,10 @@ export default function AdminPage() {
                     
                     {/* User Avatar */}
                     <div className="flex-shrink-0">
-                      {log.avatar ? (
+                      {getUserAvatar(log) ? (
                         <img
-                          src={log.avatar}
-                          alt={`${log.firstName} ${log.lastName}`}
+                          src={getUserAvatar(log)!}
+                          alt={getUserDisplayName(log)}
                           className="w-10 h-10 rounded-full object-cover border-2"
                           style={{ borderColor: colorScheme.border }}
                         />
@@ -305,7 +372,7 @@ export default function AdminPage() {
                             borderColor: colorScheme.border
                           }}
                         >
-                          {log.firstName[0]}{log.lastName[0]}
+                          {getUserInitials(log)}
                         </div>
                       )}
                     </div>
@@ -313,7 +380,7 @@ export default function AdminPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
                         <p className="text-sm font-medium" style={{ color: colorScheme.text }}>
-                          {log.firstName} {log.lastName}
+                          {getUserDisplayName(log)}
                         </p>
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
                               style={{ 
@@ -431,7 +498,7 @@ export default function AdminPage() {
                          borderColor: colorScheme.border 
                        }}>
                     <div className="flex-shrink-0">
-                      {activity.action === 'view' ? (
+                      {activity.action === 'VIEW' ? (
                         <Eye className="h-5 w-5" style={{ color: '#3B82F6' }} />
                       ) : (
                         <Download className="h-5 w-5" style={{ color: '#10B981' }} />
@@ -441,7 +508,7 @@ export default function AdminPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center space-x-2">
                         <p className="text-sm font-medium" style={{ color: colorScheme.text }}>
-                          {activity.user.firstName} {activity.user.lastName}
+                          {activity.user.name || activity.user.email}
                         </p>
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium"
                               style={{ 
@@ -452,15 +519,15 @@ export default function AdminPage() {
                               }}>
                           {activity.user.role}
                         </span>
-                        <span className="text-sm font-medium" style={{ color: activity.action === 'view' ? '#3B82F6' : '#10B981' }}>
-                          {activity.action === 'view' ? 'viewed' : 'downloaded'}
+                        <span className="text-sm font-medium" style={{ color: activity.action === 'VIEW' ? '#3B82F6' : '#10B981' }}>
+                          {activity.action === 'VIEW' ? 'viewed' : 'downloaded'}
                         </span>
                       </div>
                       <p className="text-sm" style={{ color: colorScheme.textSecondary }}>
-                        <span className="font-medium">{activity.report.title}</span>
-                        {activity.report.folder && (
-                          <span> from {activity.report.folder.name}</span>
-                        )}
+                        <span className="font-medium">{activity.fileName || 'Unknown File'}</span>
+                        <span className="text-xs ml-2 px-2 py-1 rounded-full" style={{ backgroundColor: colorScheme.surface }}>
+                          {activity.fileType}
+                        </span>
                       </p>
                       <p className="text-xs" style={{ color: colorScheme.textSecondary }}>
                         {formatTimeAgo(activity.createdAt)} • {activity.fileType} • {activity.ipAddress}

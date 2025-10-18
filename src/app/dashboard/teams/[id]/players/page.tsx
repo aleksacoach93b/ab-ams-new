@@ -220,16 +220,18 @@ export default function TeamPlayersPage() {
   }
 
   const filteredPlayers = allPlayers.filter(player =>
-    player.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    player.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (player.position && player.position.toLowerCase().includes(searchTerm.toLowerCase()))
+    (player.firstName && player.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (player.lastName && player.lastName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (player.position && player.position.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (player.name && player.name.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   const filteredStaff = allStaff.filter(staff =>
-    staff.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (staff.firstName && staff.firstName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (staff.lastName && staff.lastName.toLowerCase().includes(searchTerm.toLowerCase())) ||
     (staff.role && staff.role.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (staff.specialization && staff.specialization.toLowerCase().includes(searchTerm.toLowerCase()))
+    (staff.specialization && staff.specialization.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (staff.name && staff.name.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   const availablePlayers = filteredPlayers.filter(player => 

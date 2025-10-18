@@ -1,53 +1,92 @@
 import { PrismaClient } from '@prisma/client'
-import { createPDFThumbnailFromUrl } from '../src/lib/pdf-utils'
+import { join } from 'path'
+import { existsSync } from 'fs'
+import { promises as fs } from 'fs'
 
 const prisma = new PrismaClient()
 
-async function generatePDFThumbnails() {
-  console.log('🔧 Generating PDF Thumbnails...')
-  
+async function generateThumbnailsForExistingPDFs() {
   try {
-    // Get all PDF reports without thumbnails
+    console.log('🔍 Finding PDF reports without thumbnails...')
+    
+    // Find all PDF reports that don't have thumbnails
     const pdfReports = await prisma.report.findMany({
       where: {
         fileType: 'application/pdf',
-        thumbnailUrl: null,
-        isActive: true
+        thumbnailUrl: null
       }
     })
 
     console.log(`📄 Found ${pdfReports.length} PDF reports without thumbnails`)
 
+    if (pdfReports.length === 0) {
+      console.log('✅ All PDF reports already have thumbnails!')
+      return
+    }
+
+    // Import pdf2pic dynamically
+    const { fromPath } = require('pdf2pic')
+    
+    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'reports')
+    const thumbnailDir = join(uploadsDir, 'thumbnails')
+    
+    // Create thumbnails directory if it doesn't exist
+    if (!existsSync(thumbnailDir)) {
+      await fs.mkdir(thumbnailDir, { recursive: true })
+    }
+
     for (const report of pdfReports) {
-      console.log(`\n🔍 Processing: "${report.title}"`)
-      
       try {
-        // Generate thumbnail
-        const thumbnailUrl = await createPDFThumbnailFromUrl(report.fileUrl, report.createdBy)
+        console.log(`🔄 Generating thumbnail for: ${report.name}`)
         
-        if (thumbnailUrl) {
-          // Update the report with thumbnail URL
-          await prisma.report.update({
-            where: { id: report.id },
-            data: { thumbnailUrl }
-          })
-          console.log(`  ✅ Thumbnail generated: ${thumbnailUrl}`)
-        } else {
-          console.log(`  ❌ Failed to generate thumbnail`)
+        // Get the file path from the fileUrl
+        const fileName = report.fileUrl.split('/').pop()
+        const filePath = join(uploadsDir, fileName!)
+        
+        // Check if the PDF file exists
+        if (!existsSync(filePath)) {
+          console.log(`⚠️  PDF file not found: ${filePath}`)
+          continue
         }
+
+        const timestamp = Date.now()
+        const thumbnailFileName = `thumb_${timestamp}.png`
+        const thumbnailPath = join(thumbnailDir, thumbnailFileName)
+        
+        const convert = fromPath(filePath, {
+          density: 200,
+          saveFilename: `thumb_${timestamp}`,
+          savePath: thumbnailDir,
+          format: 'png',
+          width: 200,
+          height: 300
+        })
+        
+        const result = await convert(1, { responseType: 'image' })
+        
+        const thumbnailUrl = `/uploads/reports/thumbnails/${thumbnailFileName}`
+        
+        // Update the report with the thumbnail URL
+        await prisma.report.update({
+          where: { id: report.id },
+          data: { thumbnailUrl }
+        })
+        
+        console.log(`✅ Generated thumbnail for: ${report.name}`)
+        
       } catch (error) {
-        console.error(`  ❌ Error processing ${report.title}:`, error)
+        console.error(`❌ Error generating thumbnail for ${report.name}:`, error)
       }
     }
 
-    console.log('\n✅ PDF thumbnail generation completed!')
+    console.log('🎉 Thumbnail generation complete!')
     
   } catch (error) {
-    console.error('❌ Error generating PDF thumbnails:', error)
+    console.error('❌ Error in thumbnail generation script:', error)
   } finally {
     await prisma.$disconnect()
   }
 }
 
 // Run the script
-generatePDFThumbnails()
+generateThumbnailsForExistingPDFs()

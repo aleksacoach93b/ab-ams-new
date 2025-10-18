@@ -7,6 +7,7 @@ import { Calendar, Clock, MapPin, Users, Edit, Trash2, X, Save, User, UserCheck,
 import CustomIcon from './CustomIcon'
 import EventIconSelector from './EventIconSelector'
 import { useTheme } from '@/contexts/ThemeContext'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Event {
   id: string
@@ -36,15 +37,16 @@ interface Coach {
   firstName: string
   lastName: string
   coachType?: string
+  position?: string
+  department?: string
 }
 
 interface EventMedia {
   id: string
-  name: string
-  type: string
-  url: string
-  size?: number
-  mimeType?: string
+  fileName: string
+  fileType: string
+  fileUrl: string
+  fileSize?: number
   uploadedAt: string
 }
 
@@ -54,6 +56,15 @@ interface EventModalProps {
   onClose: () => void
   onEdit: (updatedEvent: Event) => void
   onDelete: (eventId: string) => void
+  user?: {
+    role?: string
+    id?: string
+  } | null
+  staffPermissions?: {
+    canCreateEvents?: boolean
+    canEditEvents?: boolean
+    canDeleteEvents?: boolean
+  }
 }
 
 const getEventColor = (type: string) => {
@@ -63,6 +74,9 @@ const getEventColor = (type: string) => {
     case 'MEETING': return '#3B82F6' // Blue
     case 'MEDICAL': return '#10B981' // Green
     case 'RECOVERY': return '#8B5CF6' // Purple
+    case 'MEAL': return '#F97316' // Orange-Red (distinct from training)
+    case 'REST': return '#6366F1' // Indigo
+    case 'OTHER': return '#6B7280' // Gray
     default: return '#6B7280' // Gray
   }
 }
@@ -71,8 +85,41 @@ const getEventIconComponent = (iconName: string, color?: string) => {
   return <CustomIcon name={iconName} className="h-5 w-5" style={{ color }} />
 }
 
-export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }: EventModalProps) {
-  const { colorScheme } = useTheme()
+export default function EventModal({ event, isOpen, onClose, onEdit, onDelete, user, staffPermissions }: EventModalProps) {
+  const { colorScheme, theme } = useTheme()
+  const { token } = useAuth()
+  
+  // Permission checking functions
+  const canEditEvents = () => {
+    if (user?.role === 'ADMIN' || user?.role === 'COACH') {
+      return true
+    }
+    if (user?.role === 'STAFF' && staffPermissions?.canEditEvents) {
+      return true
+    }
+    return false
+  }
+
+  const canDeleteEvents = () => {
+    if (user?.role === 'ADMIN' || user?.role === 'COACH') {
+      return true
+    }
+    if (user?.role === 'STAFF' && staffPermissions?.canDeleteEvents) {
+      return true
+    }
+    return false
+  }
+
+  const canManageMedia = () => {
+    if (user?.role === 'ADMIN' || user?.role === 'COACH') {
+      return true
+    }
+    if (user?.role === 'STAFF' && staffPermissions?.canEditEvents) {
+      return true
+    }
+    return false
+  }
+
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<Event | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -83,6 +130,11 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
   const [mediaFiles, setMediaFiles] = useState<EventMedia[]>([])
   const [uploadingMedia, setUploadingMedia] = useState(false)
   const [showMediaUpload, setShowMediaUpload] = useState(false)
+  const [previewMedia, setPreviewMedia] = useState<EventMedia | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isSelectingFile, setIsSelectingFile] = useState(false)
+
+
 
   useEffect(() => {
     if (event) {
@@ -91,6 +143,7 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
       setSelectedStaff(event.selectedStaff || [])
     }
   }, [event])
+
 
   // Fetch players, staff, and media when modal opens
   useEffect(() => {
@@ -115,8 +168,13 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
 
           if (mediaResponse.ok) {
             const mediaData = await mediaResponse.json()
+            console.log('📁 Fetched event media data:', mediaData)
+            console.log('📁 Event media count:', mediaData.length)
             setMediaFiles(mediaData)
+          } else {
+            console.error('❌ Failed to fetch event media:', mediaResponse.status)
           }
+
         } catch (error) {
           console.error('Error fetching data:', error)
         }
@@ -169,31 +227,93 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
     )
   }
 
-  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (!file || !event) return
+    setSelectedFile(file || null)
+    setIsSelectingFile(false)
+  }
 
+  const handleFileInputClick = () => {
+    setIsSelectingFile(true)
+    // Reset the flag after a timeout in case file dialog doesn't trigger onChange
+    setTimeout(() => {
+      setIsSelectingFile(false)
+    }, 3000)
+  }
+
+  const handleConfirmUpload = async () => {
+    if (selectedFile && event) {
+      await handleMediaUpload()
+    }
+  }
+
+  const handleMediaUpload = async () => {
+    console.log('🚀 Upload button clicked!')
+    console.log('📁 Selected file:', selectedFile)
+    console.log('📅 Event:', event)
+    
+    if (!selectedFile || !event) {
+      alert('Please select a file first!')
+      return
+    }
+
+    console.log('🚀 Starting upload for event:', event.id, 'File:', selectedFile.name)
+    
     setUploadingMedia(true)
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', selectedFile)
+
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+        console.log('🔑 Using auth token')
+      } else {
+        console.log('❌ No auth token available')
+      }
+
+      console.log('📤 Sending upload request to:', `/api/events/${event.id}/media`)
+      console.log('📤 File details:', {
+        name: selectedFile.name,
+        type: selectedFile.type,
+        size: selectedFile.size
+      })
 
       const response = await fetch(`/api/events/${event.id}/media`, {
         method: 'POST',
+        headers,
         body: formData,
       })
 
+      console.log('📥 Upload response status:', response.status)
+
       if (response.ok) {
         const result = await response.json()
+        console.log('✅ Media upload result:', result)
+        console.log('✅ Media object:', result.media)
+        
+        // Add the new media to the list
         setMediaFiles(prev => [result.media, ...prev])
+        
+        // Close modal and reset
+        setSelectedFile(null)
         setShowMediaUpload(false)
+        
+        // Reset file input
+        const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
+        if (fileInput) {
+          fileInput.value = ''
+        }
+        
+        console.log('✅ Upload completed successfully')
       } else {
-        const error = await response.json()
-        alert(error.message || 'Failed to upload media')
+        const errorData = await response.json()
+        console.error('❌ Upload failed:', errorData)
+        alert(`Failed to upload media: ${errorData.message || 'Unknown error'}`)
       }
     } catch (error) {
-      console.error('Error uploading media:', error)
-      alert('Error uploading media')
+      console.error('💥 Error uploading media:', error)
+      alert(`Error uploading media: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setUploadingMedia(false)
     }
@@ -203,14 +323,23 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
     if (!event || !confirm('Are you sure you want to delete this media file?')) return
 
     try {
+      const headers: Record<string, string> = {}
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`
+      }
+
       const response = await fetch(`/api/events/${event.id}/media/${mediaId}`, {
         method: 'DELETE',
+        headers,
       })
 
       if (response.ok) {
         setMediaFiles(prev => prev.filter(media => media.id !== mediaId))
+        console.log('✅ Media deleted successfully')
       } else {
-        alert('Failed to delete media')
+        const error = await response.json()
+        console.error('❌ Media deletion failed:', error)
+        alert(error.message || 'Failed to delete media')
       }
     } catch (error) {
       console.error('Error deleting media:', error)
@@ -219,9 +348,16 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
   }
 
   const getFileIcon = (media: EventMedia) => {
-    if (media.type === 'IMAGE') return <Image className="h-8 w-8" />
-    if (media.type === 'VIDEO') return <Video className="h-8 w-8" />
-    if (media.type === 'AUDIO') return <File className="h-8 w-8" />
+    const mimeType = media.fileType
+    
+    if (mimeType?.startsWith('image/')) return <Image className="h-8 w-8" />
+    if (mimeType?.startsWith('video/')) return <Video className="h-8 w-8" />
+    if (mimeType?.startsWith('audio/')) return <File className="h-8 w-8" />
+    if (mimeType === 'application/pdf') return <File className="h-8 w-8" style={{ color: '#dc2626' }} />
+    if (mimeType?.includes('document') || mimeType?.includes('word')) return <File className="h-8 w-8" style={{ color: '#2563eb' }} />
+    if (mimeType?.includes('sheet') || mimeType?.includes('excel')) return <File className="h-8 w-8" style={{ color: '#059669' }} />
+    if (mimeType?.includes('presentation') || mimeType?.includes('powerpoint')) return <File className="h-8 w-8" style={{ color: '#dc2626' }} />
+    
     return <File className="h-8 w-8" />
   }
 
@@ -233,9 +369,15 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
   }
 
   const handleSave = async () => {
-    if (!formData) return
+    if (!formData) {
+      console.error('No form data available')
+      alert('No event data to save.')
+      return
+    }
 
+    console.log('💾 Saving event with data:', formData)
     setIsLoading(true)
+    
     try {
       const eventData = {
         ...formData,
@@ -243,7 +385,14 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
         selectedStaff
       }
 
-      const response = await fetch('/api/events', {
+      console.log('💾 Sending event data to API:', eventData)
+
+      if (!event) {
+        console.error('❌ No event to update')
+        return
+      }
+
+      const response = await fetch(`/api/events/${event.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -251,16 +400,20 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
         body: JSON.stringify(eventData),
       })
 
+      console.log('💾 API Response status:', response.status)
+
       if (response.ok) {
         const updatedEvent = await response.json()
+        console.log('✅ Event updated successfully:', updatedEvent)
         onEdit(updatedEvent.event)
         setIsEditing(false)
       } else {
-        console.error('Failed to update event')
-        alert('Failed to update event.')
+        const errorData = await response.json()
+        console.error('❌ Failed to update event:', errorData)
+        alert(`Failed to update event: ${errorData.message || 'Unknown error'}`)
       }
     } catch (error) {
-      console.error('Error updating event:', error)
+      console.error('💥 Error updating event:', error)
       alert('An error occurred while updating the event.')
     } finally {
       setIsLoading(false)
@@ -310,7 +463,7 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex min-h-full items-center justify-center p-4 text-center">
+          <div className="flex min-h-full items-start sm:items-center justify-center p-1 sm:p-4 text-center pt-2 sm:pt-0">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
@@ -321,13 +474,13 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
               leaveTo="opacity-0 scale-95"
             >
               <Dialog.Panel 
-                className="w-full max-w-4xl max-h-[90vh] transform overflow-hidden rounded-2xl p-6 text-left align-middle shadow-xl transition-all"
+                className="w-full max-w-xs sm:max-w-2xl lg:max-w-4xl max-h-[98vh] sm:max-h-[90vh] transform overflow-y-auto rounded-2xl p-2 sm:p-6 text-left align-middle shadow-xl transition-all"
                 style={{ backgroundColor: colorScheme.surface }}
               >
-                <div className="flex justify-between items-center mb-6">
+                <div className="flex justify-between items-center mb-2 sm:mb-6">
                   <Dialog.Title 
                     as="h3" 
-                    className="text-xl font-semibold leading-6"
+                    className="text-lg sm:text-xl font-semibold leading-6"
                     style={{ color: colorScheme.text }}
                   >
                     {isEditing ? 'Edit Event' : 'Event Details'}
@@ -341,14 +494,14 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                   </button>
                 </div>
 
-                {isEditing ? (
-                  <div className="overflow-y-auto max-h-[70vh] pr-2">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {isEditing && canEditEvents() ? (
+                  <div className="overflow-y-auto max-h-[85vh] sm:max-h-[70vh] pr-1 sm:pr-2 scroll-smooth">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 sm:gap-6">
                       {/* Left Column */}
-                      <div className="space-y-6">
+                      <div className="space-y-2 sm:space-y-6">
                         {/* Basic Information */}
                         <div 
-                          className="rounded-lg p-4"
+                          className="rounded-lg p-2 sm:p-4"
                           style={{ backgroundColor: colorScheme.background }}
                         >
                           <h4 
@@ -426,6 +579,8 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                                 <option value="MEETING">Meeting</option>
                                 <option value="MEDICAL">Medical</option>
                                 <option value="RECOVERY">Recovery</option>
+                                <option value="MEAL">Meal</option>
+                                <option value="REST">Rest</option>
                                 <option value="OTHER">Other</option>
                               </select>
                             </div>
@@ -447,7 +602,7 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
 
                         {/* Date & Time */}
                         <div 
-                          className="rounded-lg p-4"
+                          className="rounded-lg p-2 sm:p-4"
                           style={{ backgroundColor: colorScheme.background }}
                         >
                           <h4 
@@ -547,10 +702,10 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                       </div>
 
                       {/* Right Column */}
-                      <div className="space-y-6">
+                      <div className="space-y-2 sm:space-y-6">
                         {/* Players Selection */}
                         <div 
-                          className="rounded-lg p-4"
+                          className="rounded-lg p-2 sm:p-4"
                           style={{ backgroundColor: colorScheme.background }}
                         >
                           <div className="flex items-center justify-between mb-4">
@@ -604,7 +759,7 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
 
                         {/* Staff Selection */}
                         <div 
-                          className="rounded-lg p-4"
+                          className="rounded-lg p-2 sm:p-4"
                           style={{ backgroundColor: colorScheme.background }}
                         >
                           <div className="flex items-center justify-between mb-4">
@@ -659,10 +814,10 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end space-x-3 pt-6 border-t" style={{ borderColor: colorScheme.border }}>
+                    <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-2 sm:pt-6 border-t" style={{ borderColor: colorScheme.border }}>
                       <button
                         onClick={() => setIsEditing(false)}
-                        className="px-6 py-2 text-sm font-medium rounded-md transition-colors"
+                        className="px-4 sm:px-6 py-2 text-sm font-medium rounded-md transition-colors"
                         style={{
                           backgroundColor: colorScheme.border,
                           color: colorScheme.text
@@ -673,7 +828,7 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                       <button
                         onClick={handleSave}
                         disabled={isLoading}
-                        className="px-6 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                        className="px-4 sm:px-6 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
                       >
                         {isLoading ? 'Saving...' : 'Save Changes'}
                       </button>
@@ -846,13 +1001,15 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                         >
                           Media Files ({mediaFiles.length})
                         </h5>
-                        <button
-                          onClick={() => setShowMediaUpload(true)}
-                          className="inline-flex items-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
-                        >
-                          <Upload className="h-4 w-4 mr-1" />
-                          Upload
-                        </button>
+                        {canManageMedia() && (
+                          <button
+                            onClick={() => setShowMediaUpload(true)}
+                            className="inline-flex items-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+                          >
+                            <Upload className="h-4 w-4 mr-1" />
+                            Upload Media
+                          </button>
+                        )}
                       </div>
                       
                       {mediaFiles.length > 0 ? (
@@ -867,41 +1024,59 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                               }}
                             >
                               <div className="aspect-square flex items-center justify-center p-2">
-                                {media.type === 'IMAGE' ? (
+                                {media.fileType?.startsWith('image/') ? (
                                   <img
-                                    src={media.url}
-                                    alt={media.name}
+                                    src={media.fileUrl}
+                                    alt={media.fileName}
                                     className="w-full h-full object-cover rounded"
+                                    onError={(e) => {
+                                      console.error('Image load error:', e)
+                                      // Fallback to file icon if image fails to load
+                                      ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                                      ;(e.currentTarget.nextElementSibling as HTMLElement)?.style.setProperty('display', 'block')
+                                    }}
                                   />
-                                ) : (
-                                  <div 
-                                    className="text-center"
-                                    style={{ color: colorScheme.textSecondary }}
-                                  >
-                                    {getFileIcon(media)}
-                                    <p className="text-xs mt-1 truncate px-1">{media.name}</p>
-                                  </div>
-                                )}
+                                ) : media.fileType?.startsWith('video/') ? (
+                                  <video
+                                    src={media.fileUrl}
+                                    className="w-full h-full object-cover rounded"
+                                    controls
+                                    preload="metadata"
+                                  />
+                                ) : null}
+                                
+                                {/* Fallback for non-media files or failed image loads */}
+                                <div 
+                                  className="text-center w-full h-full flex flex-col items-center justify-center"
+                                  style={{ 
+                                    color: colorScheme.textSecondary,
+                                    display: media.fileType?.startsWith('image/') ? 'none' : 'flex'
+                                  }}
+                                >
+                                  {getFileIcon(media)}
+                                  <p className="text-xs mt-1 truncate px-1 max-w-full">{media.fileName}</p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {media.fileSize ? `${Math.round(media.fileSize / 1024)}KB` : ''}
+                                  </p>
+                                </div>
                               </div>
                               
                               {/* Action Buttons */}
                               <div className="absolute top-1 right-1 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <a
-                                  href={media.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
+                                <button
+                                  onClick={() => setPreviewMedia(media)}
                                   className="p-1 rounded transition-colors"
                                   style={{
                                     backgroundColor: colorScheme.border,
                                     color: colorScheme.textSecondary
                                   }}
-                                  title="View"
+                                  title="Preview"
                                 >
                                   <Eye className="h-3 w-3" />
-                                </a>
+                                </button>
                                 <a
-                                  href={media.url}
-                                  download={media.name}
+                                  href={media.fileUrl}
+                                  download={media.fileName}
                                   className="p-1 rounded transition-colors"
                                   style={{
                                     backgroundColor: colorScheme.border,
@@ -911,17 +1086,19 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                                 >
                                   <Download className="h-3 w-3" />
                                 </a>
-                                <button
-                                  onClick={() => handleDeleteMedia(media.id)}
-                                  className="p-1 rounded transition-colors"
-                                  style={{
-                                    backgroundColor: colorScheme.border,
-                                    color: colorScheme.textSecondary
-                                  }}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
+                                {canManageMedia() && (
+                                  <button
+                                    onClick={() => handleDeleteMedia(media.id)}
+                                    className="p-1 rounded transition-colors"
+                                    style={{
+                                      backgroundColor: colorScheme.border,
+                                      color: colorScheme.textSecondary
+                                    }}
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           ))}
@@ -944,35 +1121,43 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                           >
                             No media files uploaded yet
                           </p>
-                          <button
-                            onClick={() => setShowMediaUpload(true)}
-                            className="inline-flex items-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
-                          >
-                            <Upload className="h-4 w-4 mr-1" />
-                            Upload Media
-                          </button>
+                          {canManageMedia() && (
+                            <button
+                              onClick={() => setShowMediaUpload(true)}
+                              className="inline-flex items-center px-3 py-1 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+                            >
+                              <Upload className="h-4 w-4 mr-1" />
+                              Upload Media
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex justify-end space-x-3 pt-4 border-t" style={{ borderColor: colorScheme.border }}>
-                      <button
-                        onClick={handleDelete}
-                        disabled={isLoading}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4 inline mr-1" />
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
-                      >
-                        <Edit className="h-4 w-4 inline mr-1" />
-                        Edit
-                      </button>
-                    </div>
+                    {(canEditEvents() || canDeleteEvents()) && (
+                      <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t" style={{ borderColor: colorScheme.border }}>
+                        {canDeleteEvents() && (
+                          <button
+                            onClick={handleDelete}
+                            disabled={isLoading}
+                            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4 inline mr-1" />
+                            Delete
+                          </button>
+                        )}
+                        {canEditEvents() && (
+                          <button
+                            onClick={() => setIsEditing(true)}
+                            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+                          >
+                            <Edit className="h-4 w-4 inline mr-1" />
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </Dialog.Panel>
@@ -981,10 +1166,92 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
         </div>
 
         {/* Media Upload Modal */}
-        {showMediaUpload && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60">
+        {showMediaUpload && canManageMedia() && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            onClick={(e) => {
+              // Only close if clicking the backdrop and not during file selection
+              if (e.target === e.currentTarget && !uploadingMedia && !isSelectingFile) {
+                setShowMediaUpload(false)
+                setSelectedFile(null)
+              }
+            }}
+          >
             <div 
-              className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+              className="w-full max-w-md rounded-lg"
+              style={{ backgroundColor: colorScheme.surface }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className={`p-6 border-b ${
+                theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
+              }`}>
+                <h3 className={`text-lg font-semibold ${
+                  theme === 'dark' ? 'text-white' : 'text-gray-900'
+                }`}>
+                  Upload Media
+                </h3>
+                <p className={`text-sm mt-1 ${
+                  theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                }`}>
+                  Upload PDFs, images, videos, and other files
+                </p>
+              </div>
+              <div className="p-6">
+              
+              <input
+                type="file"
+                onChange={handleFileSelection}
+                onClick={handleFileInputClick}
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.mp4,.avi,.mov,.mp3,.wav"
+                className="w-full p-3 border border-gray-300 rounded-md"
+                disabled={uploadingMedia}
+              />
+              {selectedFile && (
+                <div className="mt-2">
+                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Selected 1 file(s):
+                  </p>
+                  <ul className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                    <li className="truncate">• {selectedFile.name}</li>
+                  </ul>
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 mt-4">
+                <button
+                  onClick={() => {
+                    if (!uploadingMedia) {
+                      setShowMediaUpload(false)
+                      setSelectedFile(null)
+                      setIsSelectingFile(false)
+                    }
+                  }}
+                  disabled={uploadingMedia}
+                  className={`px-4 py-2 rounded-md ${
+                    theme === 'dark' 
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmUpload}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={uploadingMedia || !selectedFile}
+                >
+                  {uploadingMedia ? 'Uploading...' : 'Add'}
+                </button>
+              </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Media Preview Modal */}
+        {previewMedia && (
+          <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-70">
+            <div 
+              className="bg-white rounded-lg p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-auto"
               style={{ backgroundColor: colorScheme.surface }}
             >
               <div className="flex justify-between items-center mb-4">
@@ -992,55 +1259,80 @@ export default function EventModal({ event, isOpen, onClose, onEdit, onDelete }:
                   className="text-lg font-medium"
                   style={{ color: colorScheme.text }}
                 >
-                  Upload Media
+                  {previewMedia.fileName}
                 </h3>
                 <button
-                  onClick={() => setShowMediaUpload(false)}
-                  className="transition-colors hover:opacity-70"
-                  style={{ color: colorScheme.textSecondary }}
+                  onClick={() => setPreviewMedia(null)}
+                  className="p-2 rounded-md transition-colors"
+                  style={{ 
+                    backgroundColor: colorScheme.border,
+                    color: colorScheme.textSecondary
+                  }}
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-5 w-5" />
                 </button>
               </div>
               
-              <div className="space-y-4">
-                <div>
-                  <label 
-                    className="block text-sm font-medium mb-2"
-                    style={{ color: colorScheme.text }}
-                  >
-                    Select File
-                  </label>
-                  <input
-                    type="file"
-                    onChange={handleMediaUpload}
-                    disabled={uploadingMedia}
-                    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip"
-                    className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                    style={{
-                      backgroundColor: colorScheme.background,
-                      borderColor: colorScheme.border,
-                      color: colorScheme.text
+              <div className="flex flex-col items-center">
+                {previewMedia.fileType?.startsWith('image/') ? (
+                  <img
+                    src={previewMedia.fileUrl}
+                    alt={previewMedia.fileName}
+                    className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-lg"
+                    onError={(e) => {
+                      console.error('Preview image load error:', e)
+                      ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                      ;(e.currentTarget.nextElementSibling as HTMLElement)?.style.setProperty('display', 'block')
                     }}
                   />
-                </div>
+                ) : previewMedia.fileType?.startsWith('video/') ? (
+                  <video
+                    src={previewMedia.fileUrl}
+                    controls
+                    className="max-w-full max-h-[60vh] rounded-lg shadow-lg"
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : previewMedia.fileType?.startsWith('audio/') ? (
+                  <audio
+                    src={previewMedia.fileUrl}
+                    controls
+                    className="w-full max-w-md"
+                  >
+                    Your browser does not support the audio tag.
+                  </audio>
+                ) : null}
                 
-                <div className="text-xs" style={{ color: colorScheme.textSecondary }}>
-                  <p>Supported formats: Images, Videos, Audio, PDFs, Documents, Archives</p>
-                  <p>Maximum file size: 50MB</p>
-                </div>
-                
-                {uploadingMedia && (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
-                    <span 
-                      className="ml-2 text-sm"
-                      style={{ color: colorScheme.text }}
-                    >
-                      Uploading...
-                    </span>
+                {/* Fallback for unsupported preview types */}
+                <div 
+                  className="text-center p-8 max-w-md"
+                  style={{
+                    color: colorScheme.textSecondary,
+                    display: previewMedia.fileType?.startsWith('image/') ? 'none' : 'block'
+                  }}
+                >
+                  <div className="mb-4">
+                    {getFileIcon(previewMedia)}
                   </div>
-                )}
+                  <p className="text-lg font-medium mb-2" style={{ color: colorScheme.text }}>
+                    {previewMedia.fileName}
+                  </p>
+                  <p className="text-sm mb-4">
+                    {previewMedia.fileSize ? `${Math.round(previewMedia.fileSize / 1024)}KB` : 'Unknown size'}
+                  </p>
+                  <p className="text-sm mb-4">
+                    This file type cannot be previewed in the browser.
+                  </p>
+                  <a
+                    href={previewMedia.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    Open in New Tab
+                  </a>
+                </div>
               </div>
             </div>
           </div>

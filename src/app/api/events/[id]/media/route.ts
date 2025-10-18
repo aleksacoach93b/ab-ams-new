@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 import { existsSync } from 'fs'
+import { verifyToken } from '@/lib/auth'
 
 export async function GET(
   request: NextRequest,
@@ -20,15 +21,26 @@ export async function GET(
 
     const mediaFiles = await prisma.eventMedia.findMany({
       where: { 
-        eventId: id,
-        isActive: true 
+        eventId: id
       },
       orderBy: {
         uploadedAt: 'desc'
       }
     })
 
-    return NextResponse.json(mediaFiles)
+    // Transform response to match frontend expectations
+    const transformedMedia = mediaFiles.map(file => ({
+      id: file.id,
+      fileName: file.fileName,
+      fileUrl: file.fileUrl,
+      fileType: file.fileType,
+      fileSize: file.fileSize,
+      uploadedAt: file.uploadedAt.toISOString(),
+    }))
+
+    console.log('📁 Returning event media files:', transformedMedia)
+
+    return NextResponse.json(transformedMedia)
   } catch (error) {
     console.error('Error fetching event media:', error)
     return NextResponse.json(
@@ -50,6 +62,46 @@ export async function POST(
         { message: 'Event ID is required' },
         { status: 400 }
       )
+    }
+
+    // Check authentication and permissions
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
+      return NextResponse.json(
+        { message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Check if user has permission to upload media
+    if (user.role === 'PLAYER') {
+      return NextResponse.json(
+        { message: 'Players are not allowed to upload event media' },
+        { status: 403 }
+      )
+    }
+
+    // For staff, check if they have event management permissions
+    if (user.role === 'STAFF') {
+      const staffMember = await prisma.staff.findUnique({
+        where: { userId: user.id },
+        select: { canEditEvents: true }
+      })
+      
+      if (!staffMember?.canEditEvents) {
+        return NextResponse.json(
+          { message: 'Insufficient permissions to upload event media' },
+          { status: 403 }
+        )
+      }
     }
 
     const formData = await request.formData()
@@ -117,22 +169,32 @@ export async function POST(
     }
 
     // Save media record to database
-    const mediaUrl = `/uploads/events/${fileName}`
+    const fileUrl = `/uploads/events/${fileName}`
     const newMedia = await prisma.eventMedia.create({
       data: {
         eventId: id,
-        name: file.name,
-        type: mediaType as any,
-        url: mediaUrl,
-        size: file.size,
-        mimeType: file.type,
-        uploadedBy: 'system', // TODO: Get from auth context
+        fileName: file.name,
+        fileUrl: fileUrl,
+        fileType: file.type,
+        fileSize: file.size,
       },
     })
 
+    // Transform response to match frontend expectations
+    const transformedMedia = {
+      id: newMedia.id,
+      fileName: newMedia.fileName,
+      fileUrl: newMedia.fileUrl,
+      fileType: newMedia.fileType,
+      fileSize: newMedia.fileSize,
+      uploadedAt: newMedia.uploadedAt.toISOString(),
+    }
+
+    console.log('✅ Event media upload successful:', transformedMedia)
+
     return NextResponse.json({
       message: 'Media uploaded successfully',
-      media: newMedia,
+      media: transformedMedia,
     })
   } catch (error) {
     console.error('Error uploading event media:', error)

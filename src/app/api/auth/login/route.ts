@@ -29,6 +29,19 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
+      // Log failed login attempt
+      await prisma.loginLog.create({
+        data: {
+          userId: '', // No user ID for invalid email
+          email: email,
+          role: 'PLAYER', // Default role
+          ipAddress: ipAddress,
+          userAgent: userAgent,
+          success: false,
+          failureReason: 'Invalid email'
+        }
+      }).catch(() => {}) // Ignore errors for logging
+      
       return NextResponse.json(
         { message: 'Invalid email or password' },
         { status: 401 }
@@ -36,6 +49,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (!user.isActive) {
+      // Log failed login attempt for inactive account
+      await prisma.loginLog.create({
+        data: {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          ipAddress: ipAddress,
+          userAgent: userAgent,
+          success: false,
+          failureReason: 'Account deactivated'
+        }
+      }).catch(() => {}) // Ignore errors for logging
+      
       return NextResponse.json(
         { message: 'Account is deactivated' },
         { status: 401 }
@@ -46,6 +72,19 @@ export async function POST(request: NextRequest) {
     const isValidPassword = await bcrypt.compare(password, user.password || '')
     
     if (!isValidPassword) {
+      // Log failed login attempt for invalid password
+      await prisma.loginLog.create({
+        data: {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          ipAddress: ipAddress,
+          userAgent: userAgent,
+          success: false,
+          failureReason: 'Invalid password'
+        }
+      }).catch(() => {}) // Ignore errors for logging
+      
       return NextResponse.json(
         { message: 'Invalid email or password' },
         { status: 401 }
@@ -59,6 +98,18 @@ export async function POST(request: NextRequest) {
         lastLoginAt: new Date(),
         loginIp: ipAddress,
         userAgent: userAgent
+      }
+    })
+
+    // Create login log entry
+    await prisma.loginLog.create({
+      data: {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        ipAddress: ipAddress,
+        userAgent: userAgent,
+        success: true
       }
     })
 

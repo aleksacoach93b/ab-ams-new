@@ -29,6 +29,7 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userPermissions, setUserPermissions] = useState<any>(null)
+  const [addDropdownOpen, setAddDropdownOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { colorScheme } = useTheme()
@@ -40,6 +41,24 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       setUserPermissions(user.staff)
     }
   }, [user])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement
+      if (!target.closest('.add-dropdown-container')) {
+        setAddDropdownOpen(false)
+      }
+    }
+
+    if (addDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [addDropdownOpen])
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -335,9 +354,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               {/* Role-based Add new dropdown */}
               {((user?.role === 'ADMIN' || user?.role === 'COACH') || 
                 (user?.role === 'STAFF' && (userPermissions?.canCreateEvents || userPermissions?.canEditPlayers))) && (
-                <div className="relative group">
+                <div className="relative add-dropdown-container">
                   <button 
-                    className="px-4 py-2 rounded-md transition-colors font-medium"
+                    onClick={() => setAddDropdownOpen(!addDropdownOpen)}
+                    className="px-4 py-2 rounded-md transition-colors font-medium hover:opacity-90"
                     style={{ 
                       backgroundColor: colorScheme.primary,
                       color: 'white'
@@ -345,9 +365,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   >
                     <Plus className="h-4 w-4 inline mr-2" />
                     Add new
+                    <ChevronDown className={`h-4 w-4 inline ml-2 transition-transform ${addDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
                   <div 
-                    className="absolute right-0 mt-2 w-48 rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50"
+                    className={`absolute right-0 mt-2 w-48 rounded-md shadow-lg transition-all duration-200 z-50 ${
+                      addDropdownOpen ? 'opacity-100 visible' : 'opacity-0 invisible'
+                    }`}
                     style={{ backgroundColor: colorScheme.surface }}
                   >
                     <div className="py-1">
@@ -355,9 +378,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       {(user?.role === 'ADMIN' || user?.role === 'COACH' || (user?.role === 'STAFF' && userPermissions?.canEditPlayers)) && (
                         <Link 
                           href="/dashboard/players/new" 
-                          className="block px-4 py-2 text-sm transition-colors"
+                          className="block px-4 py-2 text-sm transition-colors hover:bg-opacity-80"
                           style={{ 
                             color: colorScheme.text,
+                            backgroundColor: 'transparent'
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = colorScheme.background
@@ -365,6 +389,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'transparent'
                           }}
+                          onClick={() => setAddDropdownOpen(false)}
                         >
                           Add Player
                         </Link>
@@ -374,9 +399,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       {(user?.role === 'ADMIN' || user?.role === 'COACH' || (user?.role === 'STAFF' && userPermissions?.canCreateEvents)) && (
                         <Link 
                           href="/dashboard/events/new" 
-                          className="block px-4 py-2 text-sm transition-colors"
+                          className="block px-4 py-2 text-sm transition-colors hover:bg-opacity-80"
                           style={{ 
                             color: colorScheme.text,
+                            backgroundColor: 'transparent'
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = colorScheme.background
@@ -384,6 +410,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'transparent'
                           }}
+                          onClick={() => setAddDropdownOpen(false)}
                         >
                           Add Event
                         </Link>
@@ -393,9 +420,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       {(user?.role === 'ADMIN' || user?.role === 'COACH') && (
                         <Link 
                           href="/dashboard/teams/new" 
-                          className="block px-4 py-2 text-sm transition-colors"
+                          className="block px-4 py-2 text-sm transition-colors hover:bg-opacity-80"
                           style={{ 
                             color: colorScheme.text,
+                            backgroundColor: 'transparent'
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = colorScheme.background
@@ -403,6 +431,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'transparent'
                           }}
+                          onClick={() => setAddDropdownOpen(false)}
                         >
                           Add Team
                         </Link>
@@ -412,9 +441,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       {user?.role === 'ADMIN' && (
                         <Link 
                           href="/dashboard/staff/new" 
-                          className="block px-4 py-2 text-sm transition-colors"
+                          className="block px-4 py-2 text-sm transition-colors hover:bg-opacity-80"
                           style={{ 
                             color: colorScheme.text,
+                            backgroundColor: 'transparent'
                           }}
                           onMouseEnter={(e) => {
                             e.currentTarget.style.backgroundColor = colorScheme.background
@@ -422,6 +452,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                           onMouseLeave={(e) => {
                             e.currentTarget.style.backgroundColor = 'transparent'
                           }}
+                          onClick={() => setAddDropdownOpen(false)}
                         >
                           Add Staff
                         </Link>

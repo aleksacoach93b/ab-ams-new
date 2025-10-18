@@ -28,7 +28,11 @@ const customIcons: { [key: string]: string } = {
   'BloodSample': '/icons/blood-sample-final.svg',
   'BedTime': '/icons/bed-time.svg',
   'MealPlate': '/icons/meal-plate.svg',
-  'CoffeeCup': '/icons/coffee-cup.svg'
+  'CoffeeCup': '/icons/coffee-cup.svg',
+  'AmericanFootball': '/icons/american-football.svg',
+  'Basketball': '/icons/basketball.svg',
+  'TennisBall': '/icons/tennis-ball.svg',
+  'Volleyball': '/icons/volleyball.svg'
 }
 
 // Helper function to convert hex color to CSS filter
@@ -57,7 +61,12 @@ export default function CustomIcon({ name, className = "h-6 w-6", style }: Custo
         style={{
           ...style,
           objectFit: 'contain',
-          filter: style?.color ? getColorFilter(style.color) : 'none'
+          filter: style?.color ? getColorFilter(style.color) : 'none',
+          opacity: 1
+        }}
+        onError={(e) => {
+          console.error(`Failed to load icon: ${name} from ${customIcons[name]}`)
+          e.currentTarget.style.display = 'none'
         }}
       />
     )

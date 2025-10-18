@@ -7,6 +7,7 @@ import { useTheme } from '@/contexts/ThemeContext'
 
 interface Player {
   id: string
+  name: string
   firstName: string
   lastName: string
   email: string
@@ -41,11 +42,19 @@ export default function EditPlayerPage() {
         const response = await fetch(`/api/players/${playerId}`)
         if (response.ok) {
           const playerData = await response.json()
+          
+          // Split the name into firstName and lastName
+          const nameParts = playerData.name ? playerData.name.split(' ') : ['', '']
+          const firstName = nameParts[0] || ''
+          const lastName = nameParts.slice(1).join(' ') || ''
+          
           setPlayer({
             ...playerData,
+            firstName,
+            lastName,
             password: '' // Initialize password as empty for security
           })
-          setAvatarPreview(playerData.avatar)
+          setAvatarPreview(playerData.imageUrl || playerData.avatar)
         }
       } catch (error) {
         console.error('Error fetching player:', error)
@@ -73,6 +82,9 @@ export default function EditPlayerPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    console.log('📸 Starting avatar upload for player:', playerId)
+    console.log('📸 File details:', { name: file.name, size: file.size, type: file.type })
+
     // Validate file type
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
     if (!allowedTypes.includes(file.type)) {
@@ -92,18 +104,24 @@ export default function EditPlayerPage() {
       const formData = new FormData()
       formData.append('avatar', file)
 
+      console.log('📸 Sending request to:', `/api/players/${playerId}/avatar`)
+
       const response = await fetch(`/api/players/${playerId}/avatar`, {
         method: 'POST',
         body: formData,
       })
 
+      console.log('📸 Response status:', response.status)
+
       if (response.ok) {
         const result = await response.json()
+        console.log('✅ Avatar upload successful:', result)
         setPlayer(prev => prev ? { ...prev, avatar: result.avatar } : null)
         setAvatarPreview(result.avatar)
         alert('Avatar uploaded successfully!')
       } else {
         const error = await response.json()
+        console.error('❌ Avatar upload failed:', error)
         alert(error.message || 'Failed to upload avatar')
       }
     } catch (error) {
@@ -142,12 +160,18 @@ export default function EditPlayerPage() {
 
     setSaving(true)
     try {
+      // Combine firstName and lastName into name field for API
+      const apiData = {
+        ...player,
+        name: `${player.firstName} ${player.lastName}`.trim()
+      }
+
       const response = await fetch(`/api/players/${playerId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(player),
+        body: JSON.stringify(apiData),
       })
 
       if (response.ok) {

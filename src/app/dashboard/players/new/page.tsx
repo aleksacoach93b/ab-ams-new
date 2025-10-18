@@ -73,16 +73,41 @@ export default function NewPlayerPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validate required fields
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      alert('Please enter both first and last name')
+      return
+    }
+    
+    if (!formData.email.trim()) {
+      alert('Please enter an email address')
+      return
+    }
+    
+    if (!formData.password.trim()) {
+      alert('Please enter a password')
+      return
+    }
+
     setIsLoading(true)
 
     try {
+      // Combine firstName and lastName into name field for API
+      const apiData = {
+        ...formData,
+        name: `${formData.firstName} ${formData.lastName}`.trim()
+      }
+
+      console.log('📝 Sending data to API:', apiData)
+
       // First create the player
       const response = await fetch('/api/players', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(apiData),
       })
 
       if (response.ok) {

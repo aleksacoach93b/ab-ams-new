@@ -49,7 +49,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(false)
   }, [])
 
-  const login = (userData: User, authToken: string) => {
+  const login = async (userData: User, authToken: string) => {
+    // If user is staff, fetch their permissions
+    if (userData.role === 'STAFF') {
+      try {
+        const response = await fetch('/api/staff')
+        if (response.ok) {
+          const staffData = await response.json()
+          const currentStaff = staffData.find((staff: any) => staff.user?.id === userData.id)
+          if (currentStaff) {
+            // Add staff permissions to user data
+            userData.staff = currentStaff
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching staff permissions:', error)
+      }
+    }
+    
     setUser(userData)
     setToken(authToken)
     localStorage.setItem('user', JSON.stringify(userData))

@@ -40,10 +40,7 @@ async function createAdminUser() {
         email: adminEmail,
         password: hashedPassword,
         role: 'ADMIN',
-        firstName: 'System',
-        lastName: 'Administrator',
         isActive: true,
-        emailVerified: true,
       }
     })
 

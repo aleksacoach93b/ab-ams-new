@@ -4,91 +4,164 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const wellnessPlayerId = searchParams.get('wellnessPlayerId')
-    
+    const playerEmail = searchParams.get('playerEmail')
+
     if (!wellnessPlayerId) {
       return NextResponse.json({ error: 'Wellness player ID is required' }, { status: 400 })
     }
-    
+
     // Fetch CSV data from wellness app
     const csvUrl = `https://wellness-monitor-tan.vercel.app/api/surveys/${wellnessPlayerId}/export/csv`
     console.log('Fetching wellness CSV from:', csvUrl)
-    
+
     const response = await fetch(csvUrl, {
       method: 'GET',
       headers: {
-        'User-Agent': 'AB-AMS-App/1.0',
+        'Accept': 'text/csv,application/csv,*/*',
       },
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(10000) // 10 second timeout
     })
     
     if (!response.ok) {
       console.error('Failed to fetch wellness CSV:', response.status, response.statusText)
-      return NextResponse.json({ 
-        error: 'Failed to fetch wellness survey data',
-        status: response.status 
-      }, { status: response.status })
+      // Return a more graceful response instead of 500 error
+      return NextResponse.json({
+        completedToday: false,
+        error: 'Wellness survey data temporarily unavailable',
+        lastChecked: new Date().toISOString()
+      })
     }
-    
+
     const csvText = await response.text()
     console.log('CSV data length:', csvText.length)
+
+    // Parse CSV data more carefully
+    const lines = csvText.split('\n').filter(line => line.trim())
     
-    // Parse CSV to check for today's completion
-    const lines = csvText.split('\n')
-    const dataLines = lines.slice(1).filter(line => line.trim())
-    
-    // Get today's date in multiple formats
+    if (lines.length < 2) {
+      console.log('No survey data found')
+      return NextResponse.json({ completedToday: false })
+    }
+
+    // Find the submittedAt column (from the CSV structure you provided)
+    const headers = lines[0].split(',')
+    const dateColumnIndex = headers.findIndex(header => 
+      header.includes('submittedAt')
+    )
+
+    if (dateColumnIndex === -1) {
+      console.error('submittedAt column not found in CSV')
+      return NextResponse.json({ completedToday: false })
+    }
+
+    // Get today's date in various formats
     const today = new Date()
     const todayFormats = [
-      `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`, // M/D/YYYY
-      `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`, // MM/DD/YYYY
-      `${today.getDate()}/${today.getMonth() + 1}/${today.getFullYear()}`, // D/M/YYYY
-      `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`, // DD/MM/YYYY
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`, // YYYY-MM-DD
+      today.toLocaleDateString('en-US'), // MM/DD/YYYY
+      today.toLocaleDateString('en-GB'), // DD/MM/YYYY
+      today.toISOString().split('T')[0], // YYYY-MM-DD
     ]
-    
+
     console.log('Today formats:', todayFormats)
+
+    // Find the playerName column to check for specific player
+    const playerNameColumnIndex = headers.findIndex(header => 
+      header.includes('playerName')
+    )
+
+    console.log('Looking for player:', wellnessPlayerId)
+    console.log('Date column index:', dateColumnIndex)
+    console.log('Player name column index:', playerNameColumnIndex)
+
+    // Check if any row has today's date AND matches the specific player
+    let completedToday = false
+    let playerFound = false
     
-    // Check if any survey was completed today
-    const completedToday = dataLines.some(line => {
-      if (!line.trim()) return false
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i]
+      const row = line.split(',')
       
-      try {
-        // Parse the line to get the date
-        const columns = line.split(',')
-        if (columns.length < 3) return false
+      if (row[dateColumnIndex]) {
+        const surveyDate = row[dateColumnIndex].trim().replace(/"/g, '')
         
-        // The submittedAt column is the 3rd column (index 2)
-        const submittedAt = columns[2]
-        
-        // Extract just the date part from "10/15/2025, 9:32:32 AM" format
-        const surveyDate = submittedAt.split(',')[0].replace(/"/g, '').trim()
-        console.log('Survey date:', surveyDate)
-        
-        // Check if the date matches any of today's formats
-        const isToday = todayFormats.some(format => surveyDate === format)
-        if (isToday) {
-          console.log('Found match! Survey completed today:', surveyDate)
+        // Parse the date from format like "10/1/2025, 12:09:31 PM"
+        const dateMatch = surveyDate.match(/(\d{1,2}\/\d{1,2}\/\d{4})/)
+        if (dateMatch) {
+          const extractedDate = dateMatch[1]
+          
+          // Check if this row is for today
+          if (todayFormats.includes(extractedDate)) {
+            console.log('Found survey for today:', extractedDate)
+            
+            // If we have player name column, check if it matches our player
+            if (playerNameColumnIndex !== -1 && row[playerNameColumnIndex]) {
+              const playerName = row[playerNameColumnIndex].trim().replace(/"/g, '')
+              console.log('Player name in row:', playerName)
+              console.log('Looking for player email:', playerEmail)
+              
+              // Check if this row matches our specific player
+              // We can match by player name or email
+              if (playerEmail && playerEmail.trim() !== '') {
+                // Find the playerEmail column
+                const playerEmailColumnIndex = headers.findIndex(header => 
+                  header.includes('playerEmail')
+                )
+                
+                if (playerEmailColumnIndex !== -1 && row[playerEmailColumnIndex]) {
+                  const rowPlayerEmail = row[playerEmailColumnIndex].trim().replace(/"/g, '')
+                  console.log('Player email in row:', rowPlayerEmail)
+                  
+                  if (rowPlayerEmail.toLowerCase() === playerEmail.toLowerCase()) {
+                    playerFound = true
+                    completedToday = true
+                    console.log('Found survey completion for today by specific player:', playerName, rowPlayerEmail)
+                    break
+                  }
+                }
+              } else {
+                // If no specific player email provided, check if any player completed today
+                playerFound = true
+                completedToday = true
+                console.log('Found survey completion for today by player:', playerName)
+                break
+              }
+            } else {
+              // If no player name column, just check if any survey was completed today
+              completedToday = true
+              console.log('Found survey completion for today (no player name check)')
+              break
+            }
+          }
         }
-        
-        return isToday
-      } catch (error) {
-        console.error('Error parsing survey line:', error, line)
-        return false
       }
-    })
-    
+    }
+
     console.log('Wellness survey completed today:', completedToday)
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       completedToday,
-      totalSurveys: dataLines.length,
       lastChecked: new Date().toISOString()
     })
-    
-  } catch (error) {
+
+  } catch (error: any) {
     console.error('Error in wellness survey status API:', error)
-    return NextResponse.json({ 
-      error: 'Internal server error',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 })
+    
+    // Handle specific error types
+    if (error?.name === 'AbortError') {
+      console.log('Request timeout - wellness survey data unavailable')
+      return NextResponse.json({
+        completedToday: false,
+        error: 'Request timeout - wellness survey data unavailable',
+        lastChecked: new Date().toISOString()
+      })
+    }
+    
+    // For other errors, return a graceful response instead of 500
+    return NextResponse.json({
+      completedToday: false,
+      error: 'Unable to check wellness survey status',
+      lastChecked: new Date().toISOString()
+    })
   }
 }

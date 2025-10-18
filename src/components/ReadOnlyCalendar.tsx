@@ -58,12 +58,15 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
         const url = userId && userRole 
           ? `/api/events?userId=${userId}&userRole=${userRole}`
           : '/api/events'
+        
         const response = await fetch(url)
         if (response.ok) {
           const data = await response.json()
           const transformedEvents = data.map((event: any) => {
-            const startDate = event.startTime ? new Date(event.startTime) : null
-            const endDate = event.endTime ? new Date(event.endTime) : null
+            // Use event.date for the date and event.startTime/endTime for times
+            const eventDate = event.date ? new Date(event.date) : null
+            const startTime = event.startTime || ''
+            const endTime = event.endTime || ''
             
             // Format date in local timezone to avoid UTC conversion issues
             const formatLocalDate = (date: Date) => {
@@ -73,20 +76,14 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
               return `${year}-${month}-${day}`
             }
             
-            const formatLocalTime = (date: Date) => {
-              const hours = String(date.getHours()).padStart(2, '0')
-              const minutes = String(date.getMinutes()).padStart(2, '0')
-              return `${hours}:${minutes}`
-            }
-            
             return {
               id: event.id,
               title: event.title,
               type: event.type,
-              date: startDate ? formatLocalDate(startDate) : '',
-              startTime: startDate ? formatLocalTime(startDate) : '',
-              endTime: endDate ? formatLocalTime(endDate) : '',
-              location: event.location?.name || '',
+              date: eventDate ? formatLocalDate(eventDate) : '',
+              startTime: startTime,
+              endTime: endTime,
+              location: event.location?.name || event.location || '',
               description: event.description || '',
               color: getEventColor(event.type),
               icon: event.icon || 'Calendar',
@@ -113,7 +110,7 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
       case 'MEDICAL': return '#10B981' // Green
       case 'RECOVERY': return '#8B5CF6' // Purple
       case 'MEAL': return '#F97316' // Orange-red
-      case 'COFFEE': return '#92400E' // Brown
+      case 'REST': return '#6366F1' // Indigo
       default: return '#6B7280' // Gray
     }
   }
@@ -150,7 +147,16 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
     const month = String(date.getMonth() + 1).padStart(2, '0')
     const day = String(date.getDate()).padStart(2, '0')
     const dateStr = `${year}-${month}-${day}`
-    return events.filter(event => event.date === dateStr)
+    
+    // Filter events for the date and sort by start time
+    return events
+      .filter(event => event.date === dateStr)
+      .sort((a, b) => {
+        // Parse start times (format: "HH:MM")
+        const timeA = a.startTime || '00:00'
+        const timeB = b.startTime || '00:00'
+        return timeA.localeCompare(timeB)
+      })
   }
 
   const getEventsForSelectedDate = () => {
@@ -158,7 +164,16 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
     const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
     const day = String(selectedDate.getDate()).padStart(2, '0')
     const dateStr = `${year}-${month}-${day}`
-    return events.filter(event => event.date === dateStr)
+    
+    // Filter events for the selected date and sort by start time
+    return events
+      .filter(event => event.date === dateStr)
+      .sort((a, b) => {
+        // Sort events by start time
+        const timeA = a.startTime.replace(':', '')
+        const timeB = b.startTime.replace(':', '')
+        return timeA.localeCompare(timeB)
+      })
   }
 
   const isToday = (date: Date) => {
@@ -195,7 +210,7 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
       style={{ backgroundColor: colorScheme.background }}
     >
       {/* Clean Month Navigation */}
-      <div className="px-2 py-3 w-full" style={{ backgroundColor: colorScheme.surface }}>
+      <div className="px-0 sm:px-2 py-3 w-full" style={{ backgroundColor: colorScheme.surface }}>
         <div className="flex items-center justify-between w-full">
           <button 
             onClick={() => navigateMonth('prev')} 
@@ -225,7 +240,7 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
       </div>
 
       {/* Clean Calendar Grid */}
-      <div className="px-2 pb-4 w-full" style={{ backgroundColor: colorScheme.surface }}>
+      <div className="px-0 sm:px-2 pb-4 w-full" style={{ backgroundColor: colorScheme.surface }}>
         {/* Day headers */}
         <div 
           className="grid grid-cols-7 text-center text-xs font-medium py-2"
@@ -290,20 +305,16 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
 
       {/* Clean Events Section - NO ADD BUTTON */}
       <div 
-        className="px-2 py-4 w-full"
+        className="px-0 sm:px-2 py-4 w-full"
         style={{ backgroundColor: colorScheme.background }}
       >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 
-              className="text-lg font-bold"
-              style={{ color: colorScheme.text }}
-            >
-              {todayEvents.length} Events
-            </h3>
-          </div>
-          
-          {/* No Add button for players */}
+        <div className="flex items-center justify-center mb-4">
+          <h3 
+            className="text-lg font-bold"
+            style={{ color: colorScheme.text }}
+          >
+            {todayEvents.length} Events
+          </h3>
         </div>
         
         {loading ? (
@@ -356,14 +367,15 @@ export default function ReadOnlyCalendar({ userId, userRole }: ReadOnlyCalendarP
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 px-2">
             {todayEvents.map((event, index) => (
               <div
                 key={event.id}
-                className="p-3 rounded-lg cursor-pointer transition-colors"
+                className="px-3 py-3 rounded-lg cursor-pointer transition-colors"
                 style={{ 
                   backgroundColor: colorScheme.surface,
-                  border: `1px solid ${colorScheme.border}`
+                  border: `1px solid ${colorScheme.border}`,
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                 }}
                 onClick={() => handleEventClick(event)}
                 onMouseEnter={(e) => {

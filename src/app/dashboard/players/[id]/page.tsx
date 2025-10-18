@@ -33,6 +33,7 @@ interface MediaFile {
   uploadDate?: string // For backward compatibility
   url: string
   thumbnail?: string
+  tags?: string[]
 }
 
 interface PlayerNote {
@@ -45,9 +46,8 @@ interface PlayerNote {
   updatedAt: string
   author: {
     id: string
-    firstName: string
-    lastName: string
-    avatar?: string
+    name: string
+    email: string
   }
 }
 
@@ -68,16 +68,23 @@ export default function PlayerProfilePage() {
   const [activeTab, setActiveTab] = useState<'media' | 'notes'>('media')
   const [showNewNote, setShowNewNote] = useState(false)
   const [editingNote, setEditingNote] = useState<PlayerNote | null>(null)
+  const [availableTags, setAvailableTags] = useState<string[]>([])
+  const [newTag, setNewTag] = useState('')
+  const [showTagModal, setShowTagModal] = useState(false)
+  const [editingMediaTags, setEditingMediaTags] = useState<MediaFile | null>(null)
+  const [selectedUploadTags, setSelectedUploadTags] = useState<string[]>([])
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null)
 
   const playerId = params.id as string
 
   useEffect(() => {
     const fetchPlayerData = async () => {
       try {
-        const [playerResponse, mediaResponse, notesResponse] = await Promise.all([
+        const [playerResponse, mediaResponse, notesResponse, tagsResponse] = await Promise.all([
           fetch(`/api/players/${playerId}`),
           fetch(`/api/players/${playerId}/media`),
-          fetch(`/api/players/${playerId}/notes`)
+          fetch(`/api/players/${playerId}/notes`),
+          fetch(`/api/players/${playerId}/tags`)
         ])
 
         if (playerResponse.ok) {
@@ -87,25 +94,34 @@ export default function PlayerProfilePage() {
 
         if (mediaResponse.ok) {
           const mediaData = await mediaResponse.json()
+          console.log('📁 Fetched media data:', mediaData)
+          
           // Transform the data to match our interface
           const transformedMedia = mediaData.map((file: any) => ({
             id: file.id,
-            name: file.name,
-            fileName: file.name, // Use name as fileName for compatibility
-            mimeType: file.mimeType,
-            fileType: file.mimeType, // Use mimeType as fileType for compatibility
-            size: file.size,
-            fileSize: file.size, // Use size as fileSize for compatibility
+            name: file.fileName,
+            fileName: file.fileName,
+            mimeType: file.fileType,
+            fileType: file.fileType,
+            size: file.fileSize,
+            fileSize: file.fileSize,
             uploadedAt: file.uploadedAt,
-            uploadDate: file.uploadedAt, // Use uploadedAt as uploadDate for compatibility
-            url: file.url
+            uploadDate: file.uploadedAt,
+            url: file.fileUrl,
+            tags: file.tags || []
           }))
+          console.log('📁 Transformed media data:', transformedMedia)
           setMediaFiles(transformedMedia)
         }
 
         if (notesResponse.ok) {
           const notesData = await notesResponse.json()
           setNotes(notesData)
+        }
+
+        if (tagsResponse.ok) {
+          const tagsData = await tagsResponse.json()
+          setAvailableTags(tagsData.tags || [])
         }
       } catch (error) {
         console.error('Error fetching player data:', error)
@@ -119,38 +135,72 @@ export default function PlayerProfilePage() {
     }
   }, [playerId])
 
-  const handleFileUpload = async (files: FileList) => {
+  const handleFileUpload = async (files: FileList, tags: string[] = []) => {
+    console.log('📁 Starting file upload:', { 
+      fileCount: files.length, 
+      files: Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type })),
+      tags,
+      playerId 
+    })
+    
     setUploading(true)
     try {
       const formData = new FormData()
       Array.from(files).forEach(file => {
         formData.append('files', file)
       })
+      
+      if (tags.length > 0) {
+        formData.append('tags', tags.join(','))
+      }
+
+      console.log('📁 Sending request to:', `/api/players/${playerId}/media`)
+      console.log('📁 FormData contents:', Array.from(formData.entries()))
 
       const response = await fetch(`/api/players/${playerId}/media`, {
         method: 'POST',
         body: formData
       })
 
+      console.log('📁 Response status:', response.status)
+
       if (response.ok) {
         const newMedia = await response.json()
+        console.log('✅ Upload successful, received data:', newMedia)
         // Transform the response to match our interface
         const transformedMedia = newMedia.map((file: any) => ({
           id: file.id,
-          name: file.fileName || file.name,
-          fileName: file.fileName || file.name,
-          mimeType: file.fileType || file.mimeType,
-          fileType: file.fileType || file.mimeType,
-          size: file.fileSize || file.size,
-          fileSize: file.fileSize || file.size,
-          uploadedAt: file.uploadDate || file.uploadedAt,
-          uploadDate: file.uploadDate || file.uploadedAt,
-          url: file.url
+          name: file.fileName,
+          fileName: file.fileName,
+          mimeType: file.fileType,
+          fileType: file.fileType,
+          size: file.fileSize,
+          fileSize: file.fileSize,
+          uploadedAt: file.uploadedAt,
+          uploadDate: file.uploadedAt,
+          url: file.fileUrl,
+          tags: file.tags || []
         }))
+        console.log('✅ Transformed media:', transformedMedia)
         setMediaFiles(prev => [...prev, ...transformedMedia])
         setShowUploadModal(false)
+        setSelectedUploadTags([]) // Reset selected tags
+        setSelectedFiles(null) // Reset selected files
       } else {
-        alert('Failed to upload files')
+        console.error('❌ Upload failed with status:', response.status)
+        let errorData = {}
+        try {
+          const responseText = await response.text()
+          console.error('❌ Raw response:', responseText)
+          errorData = responseText ? JSON.parse(responseText) : {}
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError)
+          errorData = { message: 'Failed to parse error response' }
+        }
+        
+        console.error('❌ Parsed error data:', errorData)
+        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status} error`
+        alert(`Failed to upload files: ${errorMessage}`)
       }
     } catch (error) {
       console.error('Error uploading files:', error)
@@ -172,12 +222,69 @@ export default function PlayerProfilePage() {
 
       if (response.ok) {
         setMediaFiles(prev => prev.filter(file => file.id !== mediaId))
+        // Refresh tags after deletion
+        const tagsResponse = await fetch(`/api/players/${playerId}/tags`)
+        if (tagsResponse.ok) {
+          const tagsData = await tagsResponse.json()
+          setAvailableTags(tagsData.tags || [])
+        }
       } else {
         alert('Failed to delete file')
       }
     } catch (error) {
       console.error('Error deleting file:', error)
       alert('Error deleting file')
+    }
+  }
+
+  const handleUpdateMediaTags = async (mediaId: string, tags: string[]) => {
+    try {
+      const response = await fetch(`/api/players/${playerId}/media/${mediaId}/tags`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ tags }),
+      })
+
+      if (response.ok) {
+        // Update the media file in state
+        setMediaFiles(prev => prev.map(file => 
+          file.id === mediaId ? { ...file, tags } : file
+        ))
+        
+        // Refresh available tags
+        const tagsResponse = await fetch(`/api/players/${playerId}/tags`)
+        if (tagsResponse.ok) {
+          const tagsData = await tagsResponse.json()
+          setAvailableTags(tagsData.tags || [])
+        }
+        
+        setEditingMediaTags(null)
+      } else {
+        alert('Failed to update tags')
+      }
+    } catch (error) {
+      console.error('Error updating tags:', error)
+      alert('Error updating tags')
+    }
+  }
+
+  const addNewTag = () => {
+    if (newTag.trim() && !availableTags.includes(newTag.trim())) {
+      setAvailableTags(prev => [...prev, newTag.trim()].sort())
+      setNewTag('')
+    }
+  }
+
+  const handleFileSelection = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    setSelectedFiles(files)
+  }
+
+  const handleConfirmUpload = async () => {
+    if (selectedFiles && selectedFiles.length > 0) {
+      await handleFileUpload(selectedFiles, selectedUploadTags)
     }
   }
 
@@ -202,9 +309,7 @@ export default function PlayerProfilePage() {
     const fileName = file.fileName || file.name || ''
     const matchesSearch = fileName.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = selectedFilter === 'All' || 
-      (selectedFilter === 'Training' && fileName.toLowerCase().includes('training')) ||
-      (selectedFilter === 'Match' && fileName.toLowerCase().includes('match')) ||
-      (selectedFilter === 'Other' && !fileName.toLowerCase().includes('training') && !fileName.toLowerCase().includes('match'))
+      (file.tags && file.tags.includes(selectedFilter))
     return matchesSearch && matchesFilter
   })
 
@@ -468,36 +573,39 @@ export default function PlayerProfilePage() {
           </div>
 
           {/* Filter Buttons */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap">
             <button
-              onClick={() => setSelectedFilter('Training')}
+              onClick={() => setSelectedFilter('All')}
               className="px-3 py-1 text-sm rounded-full transition-colors hover:opacity-80"
               style={{
-                backgroundColor: selectedFilter === 'Training' ? colorScheme.primary : colorScheme.border,
-                color: selectedFilter === 'Training' ? 'white' : colorScheme.text
+                backgroundColor: selectedFilter === 'All' ? colorScheme.primary : colorScheme.border,
+                color: selectedFilter === 'All' ? 'white' : colorScheme.text
               }}
             >
-              Training
+              All
             </button>
+            {availableTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => setSelectedFilter(tag)}
+                className="px-3 py-1 text-sm rounded-full transition-colors hover:opacity-80"
+                style={{
+                  backgroundColor: selectedFilter === tag ? colorScheme.primary : colorScheme.border,
+                  color: selectedFilter === tag ? 'white' : colorScheme.text
+                }}
+              >
+                {tag}
+              </button>
+            ))}
             <button
-              onClick={() => setSelectedFilter('Match')}
-              className="px-3 py-1 text-sm rounded-full transition-colors hover:opacity-80"
+              onClick={() => setShowTagModal(true)}
+              className="px-3 py-1 text-sm rounded-full transition-colors hover:opacity-80 border-2 border-dashed"
               style={{
-                backgroundColor: selectedFilter === 'Match' ? colorScheme.primary : colorScheme.border,
-                color: selectedFilter === 'Match' ? 'white' : colorScheme.text
+                borderColor: colorScheme.primary,
+                color: colorScheme.primary
               }}
             >
-              Match
-            </button>
-            <button
-              onClick={() => setSelectedFilter('Other')}
-              className="px-3 py-1 text-sm rounded-full transition-colors hover:opacity-80"
-              style={{
-                backgroundColor: selectedFilter === 'Other' ? colorScheme.primary : colorScheme.border,
-                color: selectedFilter === 'Other' ? 'white' : colorScheme.text
-              }}
-            >
-              Other
+              + Add Tag
             </button>
           </div>
 
@@ -629,6 +737,22 @@ export default function PlayerProfilePage() {
                       >
                         {formatFileSize(file)}
                       </p>
+                      {file.tags && file.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {file.tags.map(tag => (
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 text-xs rounded-full"
+                              style={{ 
+                                backgroundColor: colorScheme.primary + '20',
+                                color: colorScheme.primary
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -653,6 +777,22 @@ export default function PlayerProfilePage() {
                       >
                         {formatFileSize(file)} • {new Date(file.uploadDate || file.uploadedAt).toLocaleDateString()}
                       </p>
+                      {file.tags && file.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {file.tags.map(tag => (
+                            <span
+                              key={tag}
+                              className="px-2 py-0.5 text-xs rounded-full"
+                              style={{ 
+                                backgroundColor: colorScheme.primary + '20',
+                                color: colorScheme.primary
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </>
                 )}
@@ -686,6 +826,17 @@ export default function PlayerProfilePage() {
                   >
                     <Download className="h-3 w-3" />
                   </a>
+                  <button
+                    onClick={() => setEditingMediaTags(file)}
+                    className="p-1.5 rounded-md transition-colors shadow-sm hover:opacity-80"
+                    style={{
+                      backgroundColor: colorScheme.border,
+                      color: colorScheme.textSecondary
+                    }}
+                    title="Edit Tags"
+                  >
+                    <Edit className="h-3 w-3" />
+                  </button>
                   <button
                     onClick={() => handleDeleteMedia(file.id)}
                     className="p-1.5 rounded-md transition-colors shadow-sm hover:opacity-80"
@@ -775,22 +926,14 @@ export default function PlayerProfilePage() {
                   >
                     <div className="flex items-center space-x-3">
                       <div className="flex items-center space-x-2">
-                        {note.author.avatar ? (
-                          <img
-                            src={note.author.avatar}
-                            alt={`${note.author.firstName} ${note.author.lastName}`}
-                            className="w-6 h-6 rounded-full"
-                          />
-                        ) : (
-                          <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
-                            <User className="h-3 w-3 text-gray-600" />
-                          </div>
-                        )}
+                        <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
+                          <User className="h-3 w-3 text-gray-600" />
+                        </div>
                         <span 
                           className="text-sm font-medium"
                           style={{ color: colorScheme.text }}
                         >
-                          {note.author.firstName} {note.author.lastName}
+                          {note.author.name}
                         </span>
                       </div>
                       <span 
@@ -883,17 +1026,72 @@ export default function PlayerProfilePage() {
               </p>
             </div>
             <div className="p-6">
+              <div className="mb-4">
+                <label className={`block text-sm font-medium mb-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Select Tags (Optional)
+                </label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {availableTags.map(tag => (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        setSelectedUploadTags(prev => 
+                          prev.includes(tag) 
+                            ? prev.filter(t => t !== tag)
+                            : [...prev, tag]
+                        )
+                      }}
+                      className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                        selectedUploadTags.includes(tag)
+                          ? 'bg-red-600 text-white'
+                          : theme === 'dark' 
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowTagModal(true)}
+                  className="text-sm text-red-600 hover:text-red-700"
+                >
+                  + Add New Tag
+                </button>
+              </div>
+              
               <input
                 type="file"
                 multiple
                 accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.gif,.mp4,.avi,.mov,.mp3,.wav"
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+                onChange={handleFileSelection}
                 className="w-full p-3 border border-gray-300 rounded-md"
                 disabled={uploading}
               />
+              {selectedFiles && selectedFiles.length > 0 && (
+                <div className="mt-2">
+                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+                    Selected {selectedFiles.length} file(s):
+                  </p>
+                  <ul className={`text-xs mt-1 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>
+                    {Array.from(selectedFiles).map((file, index) => (
+                      <li key={index} className="truncate">• {file.name}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <div className="flex justify-end space-x-3 mt-4">
                 <button
-                  onClick={() => setShowUploadModal(false)}
+                  onClick={() => {
+                    if (!uploading) {
+                      setShowUploadModal(false)
+                      setSelectedUploadTags([])
+                      setSelectedFiles(null)
+                    }
+                  }}
                   className={`px-4 py-2 rounded-md ${
                     theme === 'dark' 
                       ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
@@ -903,17 +1101,174 @@ export default function PlayerProfilePage() {
                 >
                   Cancel
                 </button>
+                <button
+                  onClick={handleConfirmUpload}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={uploading || !selectedFiles || selectedFiles.length === 0}
+                >
+                  {uploading ? 'Uploading...' : 'Add'}
+                </button>
               </div>
-              {uploading && (
-                <div className="mt-4 text-center">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600 mx-auto"></div>
-                  <p className={`text-sm mt-2 ${
-                    theme === 'dark' ? 'text-gray-400' : 'text-gray-500'
-                  }`}>
-                    Uploading files...
-                  </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tag Management Modal */}
+      {showTagModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`w-full max-w-md rounded-lg ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <div className={`p-6 border-b ${
+              theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Manage Tags
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <label className={`block text-sm font-medium mb-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Add New Tag
+                </label>
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    placeholder="Enter tag name"
+                    className={`flex-1 px-3 py-2 border rounded-md ${
+                      theme === 'dark' 
+                        ? 'bg-gray-700 border-gray-600 text-white' 
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                    onKeyPress={(e) => e.key === 'Enter' && addNewTag()}
+                  />
+                  <button
+                    onClick={addNewTag}
+                    className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                  >
+                    Add
+                  </button>
                 </div>
-              )}
+              </div>
+              
+              <div className="mb-4">
+                <label className={`block text-sm font-medium mb-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Existing Tags
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.map(tag => (
+                    <div
+                      key={tag}
+                      className="flex items-center space-x-1 px-3 py-1 bg-gray-200 text-gray-700 rounded-full"
+                    >
+                      <span className="text-sm">{tag}</span>
+                      <button
+                        onClick={() => {
+                          setAvailableTags(prev => prev.filter(t => t !== tag))
+                        }}
+                        className="text-red-600 hover:text-red-700 text-sm"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => {
+                    setShowTagModal(false)
+                    setNewTag('')
+                  }}
+                  className={`px-4 py-2 rounded-md ${
+                    theme === 'dark' 
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Media Tags Modal */}
+      {editingMediaTags && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`w-full max-w-md rounded-lg ${
+            theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+          }`}>
+            <div className={`p-6 border-b ${
+              theme === 'dark' ? 'border-gray-700' : 'border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold ${
+                theme === 'dark' ? 'text-white' : 'text-gray-900'
+              }`}>
+                Edit Tags for {editingMediaTags.fileName || editingMediaTags.name}
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="mb-4">
+                <label className={`block text-sm font-medium mb-2 ${
+                  theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  Select Tags
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.map(tag => (
+                    <button
+                      key={tag}
+                      onClick={() => {
+                        const currentTags = editingMediaTags.tags || []
+                        const newTags = currentTags.includes(tag)
+                          ? currentTags.filter(t => t !== tag)
+                          : [...currentTags, tag]
+                        setEditingMediaTags({ ...editingMediaTags, tags: newTags })
+                      }}
+                      className={`px-3 py-1 text-sm rounded-full transition-colors ${
+                        (editingMediaTags.tags || []).includes(tag)
+                          ? 'bg-red-600 text-white'
+                          : theme === 'dark' 
+                            ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setEditingMediaTags(null)}
+                  className={`px-4 py-2 rounded-md ${
+                    theme === 'dark' 
+                      ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' 
+                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleUpdateMediaTags(editingMediaTags.id, editingMediaTags.tags || [])}
+                  className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                >
+                  Save Tags
+                </button>
+              </div>
             </div>
           </div>
         </div>

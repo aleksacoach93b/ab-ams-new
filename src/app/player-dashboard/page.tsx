@@ -39,8 +39,7 @@ interface PlayerNote {
   createdAt: string
   updatedAt: string
   author: {
-  firstName: string
-  lastName: string
+  name: string
   }
 }
 
@@ -96,7 +95,7 @@ export default function PlayerDashboard() {
       if (playerResponse.ok) {
         const playersData = await playerResponse.json()
         const foundPlayer = playersData.find((player: any) => 
-          player.userEmail === user?.email
+          player.email === user?.email
         )
         
         console.log('Players data:', playersData)
@@ -132,22 +131,15 @@ export default function PlayerDashboard() {
     
     setIsCheckingWellness(true)
     try {
-      // Map AB AMS player ID to wellness app player ID
-      const wellnessIdMapping: { [key: string]: string } = {
-        'cmgq8klpb0002up6a1uu0tf72': 'cmg6klyig0004l704u1kd78zb', // Boris Cmiljanic
-        'cmgpffcxg0005uptmhzszf3ew': 'cmg6klyig0004l704u1kd78zb', // Mihajlo Neskovic
-        'cmgpdjdo50002uptmwq0q36lz': 'cmg6klyig0004l704u1kd78zb', // Marko Markovic
-        'cmgp96isy000oupcpkvsf4k97': 'cmg6klyig0004l704u1kd78zb', // Tamas Santa
-        'cmgowwwss000ruprqr2u3by6u': 'cmg6klyig0004l704u1kd78zb', // Dino Skorup
-      }
+      // Use the same wellness survey ID for all players
+      // This ensures all players (existing and future) use the correct wellness survey
+      const wellnessPlayerId = 'cmg6klyig0004l704u1kd78zb'
       
-      const wellnessPlayerId = wellnessIdMapping[currentPlayer.id] || currentPlayer.id
-      
-      console.log('Checking wellness survey completion for:', currentPlayer.firstName, currentPlayer.lastName)
+      console.log('Checking wellness survey completion for:', currentPlayer.name)
       console.log('Wellness Player ID:', wellnessPlayerId)
       
       // Use our internal API endpoint to avoid CORS issues
-      const response = await fetch(`/api/wellness/survey-status?wellnessPlayerId=${wellnessPlayerId}`)
+      const response = await fetch(`/api/wellness/survey-status?wellnessPlayerId=${wellnessPlayerId}&playerEmail=${encodeURIComponent(currentPlayer.email || '')}`)
       
       if (response.ok) {
         const data = await response.json()
@@ -155,10 +147,12 @@ export default function PlayerDashboard() {
         setWellnessCompletedToday(data.completedToday)
       } else {
         console.error('Failed to fetch wellness survey status:', response.status, response.statusText)
+        // If API fails, assume not completed to allow access
         setWellnessCompletedToday(false)
       }
     } catch (error) {
       console.error('Error checking wellness survey completion:', error)
+      // If there's an error, assume not completed to allow access
       setWellnessCompletedToday(false)
     } finally {
       setIsCheckingWellness(false)
@@ -249,7 +243,7 @@ export default function PlayerDashboard() {
             {isImage ? (
                   <div className="flex justify-center">
                     <img
-                      src={selectedMedia.url}
+                      src={selectedMedia.fileUrl || selectedMedia.url}
                       alt={fileName}
                       className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
                       style={{ maxWidth: '800px', maxHeight: '600px' }}
@@ -265,7 +259,7 @@ export default function PlayerDashboard() {
                   This file type cannot be previewed in the browser.
                 </p>
                 <a
-                  href={selectedMedia.url}
+                  href={selectedMedia.fileUrl || selectedMedia.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-colors"
@@ -301,7 +295,7 @@ export default function PlayerDashboard() {
       <button
         onClick={() => setViewMode('dashboard')}
         className="flex items-center space-x-2 text-sm font-medium transition-colors hover:opacity-80"
-        style={{ color: colorScheme.primary }}
+        style={{ color: colorScheme.text }}
       >
         <ArrowLeft className="h-4 w-4" />
         <span>Back to Dashboard</span>
@@ -335,7 +329,7 @@ export default function PlayerDashboard() {
             const fileName = file.fileName || file.name
             const fileType = file.fileType || file.mimeType
             const fileSize = file.fileSize || file.size
-            const fileUrl = file.url
+            const fileUrl = file.fileUrl || file.url
             
             // Determine file type for preview
             const isImage = fileType?.startsWith('image/') || 
@@ -445,7 +439,7 @@ export default function PlayerDashboard() {
       <button
         onClick={() => setViewMode('dashboard')}
         className="flex items-center space-x-2 text-sm font-medium transition-colors hover:opacity-80"
-        style={{ color: colorScheme.primary }}
+        style={{ color: colorScheme.text }}
       >
         <ArrowLeft className="h-4 w-4" />
         <span>Back to Dashboard</span>
@@ -497,7 +491,7 @@ export default function PlayerDashboard() {
                 dangerouslySetInnerHTML={{ __html: note.content }}
               />
               <p className="text-xs" style={{ color: colorScheme.textSecondary }}>
-                By {note.author.firstName} {note.author.lastName}
+                By {note.author.name}
                   </p>
                 </div>
           ))
@@ -513,10 +507,10 @@ export default function PlayerDashboard() {
         <div className="flex items-center justify-between h-16 px-4">
           {/* Player Avatar and Name */}
           <div className="flex items-center space-x-3">
-            {currentPlayer?.avatar ? (
+            {currentPlayer?.imageUrl ? (
               <img
-                src={currentPlayer.avatar}
-                alt={`${user.firstName} ${user.lastName}`}
+                src={currentPlayer.imageUrl}
+                alt={currentPlayer?.name || 'Player'}
                 className="w-10 h-10 rounded-full object-cover border-2"
                 style={{ borderColor: colorScheme.border }}
               />
@@ -528,12 +522,12 @@ export default function PlayerDashboard() {
                   borderColor: colorScheme.border
                 }}
               >
-                {user.firstName[0]}{user.lastName[0]}
-          </div>
-        )}
+                {currentPlayer?.name ? currentPlayer.name.split(' ').map(n => n[0]).join('') : 'U'}
+              </div>
+            )}
             <div>
               <p className="text-lg font-bold" style={{ color: colorScheme.text }}>
-                {user.firstName} {user.lastName}
+                {currentPlayer?.name || 'Player'}
               </p>
               <p className="text-sm" style={{ color: colorScheme.textSecondary }}>
                 Player
@@ -585,7 +579,7 @@ export default function PlayerDashboard() {
             {/* Welcome Section */}
             <div className="mb-8">
               <h2 className="text-3xl font-bold mb-3" style={{ color: colorScheme.text }}>
-                Welcome back, {user.firstName}! 👋
+                Welcome back, {currentPlayer?.name?.split(' ')[0] || 'Player'}! 👋
               </h2>
               <p className="text-base" style={{ color: colorScheme.textSecondary }}>
                 {wellnessCompletedToday 
@@ -715,47 +709,44 @@ export default function PlayerDashboard() {
 
               {/* Wellness App Card */}
               <button
-                onClick={() => {
+                onClick={async () => {
                   console.log('Wellness card clicked!')
                   console.log('Current player:', currentPlayer)
                   console.log('User email:', user?.email)
                   
-                  if (currentPlayer && currentPlayer.id) {
-                    // Map AB AMS player IDs to wellness app player IDs
-                    const wellnessIdMapping: { [key: string]: string } = {
-                      'cmgq8klpb0002up6a1uu0tf72': 'cmg6klyig0004l704u1kd78zb', // Boris Cmiljanic
-                      'cmgpffcxg0005uptmhzszf3ew': 'cmg6klyig0004l704u1kd78zb', // Mihajlo Neskovic
-                      'cmgpdjdo50002uptmwq0q36lz': 'cmg6klyig0004l704u1kd78zb', // Marko Markovic
-                      'cmgp96isy000oupcpkvsf4k97': 'cmg6klyig0004l704u1kd78zb', // Tamas Santa
-                      'cmgowwwss000ruprqr2u3by6u': 'cmg6klyig0004l704u1kd78zb', // Dino Skorup
-                    }
-                    
-                    const wellnessPlayerId = wellnessIdMapping[currentPlayer.id] || currentPlayer.id
-                    const wellnessUrl = `https://wellness-monitor-tan.vercel.app/kiosk/${wellnessPlayerId}`
-                    console.log('AB AMS Player ID:', currentPlayer.id)
-                    console.log('Wellness Player ID:', wellnessPlayerId)
-                    console.log('Opening wellness kiosk URL:', wellnessUrl)
-                    
-                    // Open wellness app in new tab
-                    const wellnessWindow = window.open(wellnessUrl, '_blank')
-                    
-                    // Set up periodic checking for survey completion
-                    const checkCompletion = setInterval(async () => {
-                      if (wellnessWindow?.closed) {
-                        clearInterval(checkCompletion)
-                        console.log('Wellness app closed, checking for completion...')
-                        // Re-check wellness survey completion
-                        await checkWellnessSurveyCompletion()
-                      }
-                    }, 2000) // Check every 2 seconds
-                    
-                    // Clear interval after 10 minutes to avoid infinite checking
-                    setTimeout(() => clearInterval(checkCompletion), 10 * 60 * 1000)
-                  } else {
-                    console.log('No current player found, using fallback')
-                    // Fallback: open wellness app kiosk mode without specific player ID
-                    window.open('https://wellness-monitor-tan.vercel.app/kiosk', '_blank')
+                  if (!currentPlayer || !currentPlayer.id) {
+                    console.log('No current player found')
+                    alert('Player information not found. Please try again.')
+                    return
                   }
+                  
+                  // Use the same wellness survey ID for all players
+                  // This ensures all players (existing and future) use the correct wellness survey
+                  const wellnessPlayerId = 'cmg6klyig0004l704u1kd78zb'
+                  
+                  // Always open the wellness survey when card is clicked
+                  // (The wellness completion check is handled at the app level, not card level)
+                  
+                  const wellnessUrl = `https://wellness-monitor-tan.vercel.app/kiosk/${wellnessPlayerId}`
+                  console.log('AB AMS Player ID:', currentPlayer.id)
+                  console.log('Wellness Player ID:', wellnessPlayerId)
+                  console.log('Opening wellness kiosk URL:', wellnessUrl)
+                  
+                  // Open wellness app in new tab
+                  const wellnessWindow = window.open(wellnessUrl, '_blank')
+                  
+                  // Set up periodic checking for survey completion
+                  const checkCompletion = setInterval(async () => {
+                    if (wellnessWindow?.closed) {
+                      clearInterval(checkCompletion)
+                      console.log('Wellness app closed, checking for completion...')
+                      // Re-check wellness survey completion
+                      await checkWellnessSurveyCompletion()
+                    }
+                  }, 2000) // Check every 2 seconds
+                  
+                  // Clear interval after 10 minutes to avoid infinite checking
+                  setTimeout(() => clearInterval(checkCompletion), 10 * 60 * 1000)
                 }}
                 className="group p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] text-left cursor-pointer"
                 style={{ 
@@ -814,33 +805,30 @@ export default function PlayerDashboard() {
 
               {/* RPE Survey Card */}
               <button
-                onClick={() => {
+                onClick={async () => {
                   console.log('RPE card clicked!')
                   console.log('Current player:', currentPlayer)
                   
-                  if (currentPlayer && currentPlayer.id) {
-                    // Map AB AMS player ID to RPE survey player ID
-                    const rpeIdMapping: { [key: string]: string } = {
-                      'cmgq8klpb0002up6a1uu0tf72': 'cmg6z9rm30000ky04wzz9gym5', // Boris Cmiljanic
-                      'cmgpffcxg0005uptmhzszf3ew': 'cmg6z9rm30000ky04wzz9gym5', // Mihajlo Neskovic
-                      'cmgpdjdo50002uptmwq0q36lz': 'cmg6z9rm30000ky04wzz9gym5', // Marko Markovic
-                      'cmgp96isy000oupcpkvsf4k97': 'cmg6z9rm30000ky04wzz9gym5', // Tamas Santa
-                      'cmgowwwss000ruprqr2u3by6u': 'cmg6z9rm30000ky04wzz9gym5', // Dino Skorup
-                    }
-                    
-                    const rpePlayerId = rpeIdMapping[currentPlayer.id] || currentPlayer.id
-                    const rpeUrl = `https://wellness-monitor-tan.vercel.app/kiosk/${rpePlayerId}`
-                    console.log('AB AMS Player ID:', currentPlayer.id)
-                    console.log('RPE Player ID:', rpePlayerId)
-                    console.log('Opening RPE kiosk URL:', rpeUrl)
-                    
-                    // Open RPE survey in new tab
-                    window.open(rpeUrl, '_blank')
-                  } else {
-                    console.log('No current player found, using fallback')
-                    // Fallback: open wellness app kiosk mode without specific player ID
-                    window.open('https://wellness-monitor-tan.vercel.app/kiosk', '_blank')
+                  if (!currentPlayer || !currentPlayer.id) {
+                    console.log('No current player found')
+                    alert('Player information not found. Please try again.')
+                    return
                   }
+                  
+                  // Use the same RPE survey ID for all players
+                  // This ensures all players (existing and future) use the correct RPE survey
+                  const rpePlayerId = 'cmg6z9rm30000ky04wzz9gym5'
+                  
+                  // For RPE survey, we'll directly open it without completion check for now
+                  // You can add RPE completion check later if needed
+                  
+                  const rpeUrl = `https://wellness-monitor-tan.vercel.app/kiosk/${rpePlayerId}`
+                  console.log('AB AMS Player ID:', currentPlayer.id)
+                  console.log('RPE Player ID:', rpePlayerId)
+                  console.log('Opening RPE kiosk URL:', rpeUrl)
+                  
+                  // Open RPE survey in new tab
+                  window.open(rpeUrl, '_blank')
                 }}
                 className="group p-6 rounded-2xl border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] text-left cursor-pointer"
                 style={{ 
@@ -876,25 +864,23 @@ export default function PlayerDashboard() {
               </button>
               </div>
 
-        {/* Modern Calendar Section - Only show when wellness is completed */}
-        {wellnessCompletedToday === true && (
-          <div className="mb-6 w-full">
-            <h3 className="text-2xl font-bold mb-6" style={{ color: colorScheme.text }}>
-              📅 Your Schedule
-            </h3>
-            <div 
-              className="w-full rounded-3xl shadow-xl p-4 border-2 transition-all duration-300 hover:shadow-2xl"
-              style={{ 
-                backgroundColor: colorScheme.surface,
-                borderColor: colorScheme.border
-              }}
-            >
-              <div className="w-full">
-                <ReadOnlyCalendar userId={user?.id} userRole={user?.role} />
-              </div>
+        {/* Modern Calendar Section - Always visible */}
+        <div className="mb-6 w-full">
+          <h3 className="text-2xl font-bold mb-6" style={{ color: colorScheme.text }}>
+            📅 Your Schedule
+          </h3>
+          <div 
+            className="w-full rounded-3xl shadow-xl p-4 border-2 transition-all duration-300 hover:shadow-2xl"
+            style={{ 
+              backgroundColor: colorScheme.surface,
+              borderColor: colorScheme.border
+            }}
+          >
+            <div className="w-full">
+              <ReadOnlyCalendar userId={user?.id} userRole={user?.role} />
             </div>
           </div>
-        )}
+        </div>
           </>
         )}
       </main>

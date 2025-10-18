@@ -41,14 +41,26 @@ interface Event {
   color: string
   icon?: string
   media?: EventMedia[]
+  selectedPlayers?: string[]
+  selectedStaff?: string[]
 }
 
 interface MobileCalendarProps {
   onEventClick?: (event: Event) => void
   onAddEvent?: () => void
+  user?: {
+    role?: string
+    id?: string
+  } | null
+  staffPermissions?: {
+    canCreateEvents?: boolean
+    canEditEvents?: boolean
+    canDeleteEvents?: boolean
+  }
+  showAddButtons?: boolean
 }
 
-export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalendarProps) {
+export default function MobileCalendar({ onEventClick, onAddEvent, user, staffPermissions, showAddButtons = true }: MobileCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [events, setEvents] = useState<Event[]>([])
   const [selectedDate, setSelectedDate] = useState(new Date())
@@ -56,6 +68,18 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null)
   const { colorScheme } = useTheme()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  
+  // Check if user can manage events
+  const canManageEvents = () => {
+    if (!showAddButtons) return false
+    if (user?.role === 'ADMIN' || user?.role === 'COACH') {
+      return true
+    }
+    if (user?.role === 'STAFF' && staffPermissions?.canCreateEvents) {
+      return true
+    }
+    return false
+  }
   
   // Modern UI state
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
@@ -71,8 +95,8 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
         if (response.ok) {
           const data = await response.json()
           const transformedEvents = data.map((event: any) => {
-            const startDate = event.startTime ? new Date(event.startTime) : null
-            const endDate = event.endTime ? new Date(event.endTime) : null
+            // Parse the event date from the API response
+            const eventDate = event.date ? new Date(event.date) : null
             
             // Format date in local timezone to avoid UTC conversion issues
             const formatLocalDate = (date: Date) => {
@@ -82,24 +106,29 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
               return `${year}-${month}-${day}`
             }
             
-            const formatLocalTime = (date: Date) => {
-              const hours = String(date.getHours()).padStart(2, '0')
-              const minutes = String(date.getMinutes()).padStart(2, '0')
-              return `${hours}:${minutes}`
-            }
+            // Extract participant IDs from the participants array
+            const selectedPlayers = event.participants
+              ?.filter((p: any) => p.playerId)
+              ?.map((p: any) => p.playerId) || []
             
+            const selectedStaff = event.participants
+              ?.filter((p: any) => p.staffId)
+              ?.map((p: any) => p.staffId) || []
+
             return {
               id: event.id,
               title: event.title,
               type: event.type,
-              date: startDate ? formatLocalDate(startDate) : '',
-              startTime: startDate ? formatLocalTime(startDate) : '',
-              endTime: endDate ? formatLocalTime(endDate) : '',
+              date: eventDate ? formatLocalDate(eventDate) : '',
+              startTime: event.startTime || '',
+              endTime: event.endTime || '',
               location: event.location?.name || '',
               description: event.description || '',
               color: getEventColor(event.type),
               icon: event.icon || 'Calendar',
-              media: event.media || []
+              media: event.media || [],
+              selectedPlayers,
+              selectedStaff
             }
           })
           setEvents(transformedEvents)
@@ -121,6 +150,9 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
       case 'MEETING': return '#3B82F6' // Blue
       case 'MEDICAL': return '#10B981' // Green
       case 'RECOVERY': return '#8B5CF6' // Purple
+      case 'MEAL': return '#F97316' // Orange-Red (distinct from training)
+      case 'REST': return '#6366F1' // Indigo
+      case 'OTHER': return '#6B7280' // Gray
       default: return '#6B7280' // Gray
     }
   }
@@ -173,6 +205,13 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
         selectedEventTypes.includes(event.type)
       )
     }
+    
+    // Sort events by start time
+    filteredEvents.sort((a, b) => {
+      const timeA = a.startTime.replace(':', '')
+      const timeB = b.startTime.replace(':', '')
+      return timeA.localeCompare(timeB)
+    })
     
     return filteredEvents
   }
@@ -230,18 +269,42 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
     const response = await fetch('/api/events')
     if (response.ok) {
       const data = await response.json()
-      const transformedEvents = data.map((event: any) => ({
-        id: event.id,
-        title: event.title,
-        type: event.type,
-        date: event.startTime ? new Date(event.startTime).toISOString().split('T')[0] : '',
-        startTime: event.startTime ? new Date(event.startTime).toTimeString().slice(0, 5) : '',
-        endTime: event.endTime ? new Date(event.endTime).toTimeString().slice(0, 5) : '',
-        location: event.location?.name || '',
-        description: event.description || '',
-        color: getEventColor(event.type),
-        icon: event.icon || 'Calendar'
-      }))
+      const transformedEvents = data.map((event: any) => {
+        // Extract participant IDs from the participants array
+        const selectedPlayers = event.participants
+          ?.filter((p: any) => p.playerId)
+          ?.map((p: any) => p.playerId) || []
+        
+        const selectedStaff = event.participants
+          ?.filter((p: any) => p.staffId)
+          ?.map((p: any) => p.staffId) || []
+
+        // Parse the event date from the API response
+        const eventDate = event.date ? new Date(event.date) : null
+        
+        // Format date in local timezone to avoid UTC conversion issues
+        const formatLocalDate = (date: Date) => {
+          const year = date.getFullYear()
+          const month = String(date.getMonth() + 1).padStart(2, '0')
+          const day = String(date.getDate()).padStart(2, '0')
+          return `${year}-${month}-${day}`
+        }
+
+        return {
+          id: event.id,
+          title: event.title,
+          type: event.type,
+          date: eventDate ? formatLocalDate(eventDate) : '',
+          startTime: event.startTime || '',
+          endTime: event.endTime || '',
+          location: event.location || '',
+          description: event.description || '',
+          color: getEventColor(event.type),
+          icon: event.icon || 'Calendar',
+          selectedPlayers,
+          selectedStaff
+        }
+      })
       setEvents(transformedEvents)
     }
     setIsModalOpen(false)
@@ -259,7 +322,7 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
     >
       {/* Clean Header */}
       <div 
-        className="sticky top-0 px-4 py-4 z-20"
+        className="sticky top-0 px-1 sm:px-6 py-4 z-20"
         style={{ backgroundColor: colorScheme.surface }}
       >
         <div className="flex items-center justify-between">
@@ -269,24 +332,26 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
             </div>
             <h1 
               className="text-xl font-bold"
-              style={{ color: colorScheme.text }}
+              style={{ color: colorScheme.text, fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}
             >
               Calendar
             </h1>
           </div>
           
-          <button
-            onClick={onAddEvent}
-            className="text-sm font-medium"
-            style={{ color: colorScheme.primary }}
-          >
-            + Add
-          </button>
+          {canManageEvents() && (
+            <button
+              onClick={onAddEvent}
+              className="text-sm font-medium"
+              style={{ color: colorScheme.primary }}
+            >
+              + Add
+            </button>
+          )}
         </div>
       </div>
 
       {/* Clean Month Navigation */}
-      <div className="px-4 py-3" style={{ backgroundColor: colorScheme.surface }}>
+      <div className="px-0 sm:px-2 py-3 w-full" style={{ backgroundColor: colorScheme.surface }}>
         <div className="flex items-center justify-between">
           <button 
             onClick={() => navigateMonth('prev')} 
@@ -316,7 +381,7 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
       </div>
 
       {/* Clean Calendar Grid */}
-      <div className="px-4 pb-4" style={{ backgroundColor: colorScheme.surface }}>
+      <div className="px-0 sm:px-2 pb-4 w-full" style={{ backgroundColor: colorScheme.surface }}>
         {/* Day headers */}
         <div 
           className="grid grid-cols-7 text-center text-xs font-medium py-2"
@@ -381,26 +446,26 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
 
       {/* Clean Events Section */}
       <div 
-        className="px-4 py-4"
+        className="px-0 sm:px-2 py-4 w-full"
         style={{ backgroundColor: colorScheme.background }}
       >
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h3 
-              className="text-lg font-bold"
-              style={{ color: colorScheme.text }}
-            >
-              {todayEvents.length} Events
-            </h3>
-          </div>
-          
-          <button
-            onClick={onAddEvent}
-            className="text-sm font-medium"
-            style={{ color: colorScheme.primary }}
+        <div className="flex items-center justify-center mb-4 relative">
+          <h3 
+            className="text-lg font-bold"
+            style={{ color: colorScheme.text }}
           >
-            + Add
-          </button>
+            {todayEvents.length} Events
+          </h3>
+          
+          {canManageEvents() && (
+            <button
+              onClick={onAddEvent}
+              className="text-sm font-medium absolute right-0"
+              style={{ color: colorScheme.primary }}
+            >
+              + Add
+            </button>
+          )}
         </div>
         
         {loading ? (
@@ -446,28 +511,31 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
               No events scheduled
             </h4>
             <p 
-              className="text-sm mb-4"
+              className="text-sm"
               style={{ color: colorScheme.textSecondary }}
             >
               This date is free.
             </p>
-            <button
-              onClick={onAddEvent}
-              className="text-sm font-medium"
-              style={{ color: colorScheme.primary }}
-            >
-              + Add Event
-            </button>
+            {canManageEvents() && (
+              <button
+                onClick={onAddEvent}
+                className="text-sm font-medium"
+                style={{ color: colorScheme.primary }}
+              >
+                + Add Event
+              </button>
+            )}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-2 px-2">
             {todayEvents.map((event, index) => (
               <div
                 key={event.id}
-                className="p-3 rounded-lg cursor-pointer transition-colors"
+                className="px-3 py-3 rounded-lg cursor-pointer transition-colors"
                 style={{ 
                   backgroundColor: colorScheme.surface,
-                  border: `1px solid ${colorScheme.border}`
+                  border: `1px solid ${colorScheme.border}`,
+                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
                 }}
                 onClick={() => handleEventClick(event)}
                 onMouseEnter={(e) => {
@@ -548,6 +616,8 @@ export default function MobileCalendar({ onEventClick, onAddEvent }: MobileCalen
         onClose={() => setIsModalOpen(false)}
         onEdit={handleEditEvent}
         onDelete={handleDeleteEvent}
+        user={user}
+        staffPermissions={staffPermissions}
       />
     </div>
   )

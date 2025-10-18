@@ -1,18 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { verifyToken } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get('userId')
-    const parentId = searchParams.get('parentId')
-
-    if (!userId) {
+    // Check authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
       return NextResponse.json(
-        { message: 'User ID is required' },
-        { status: 400 }
+        { message: 'Authentication required' },
+        { status: 401 }
       )
     }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Only coaches and admins can view report folders
+    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
+      return NextResponse.json(
+        { message: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    const { searchParams } = new URL(request.url)
+    const parentId = searchParams.get('parentId')
 
     const whereClause: any = {
       isActive: true
@@ -24,7 +42,7 @@ export async function GET(request: NextRequest) {
       whereClause.parentId = null // Root level folders
     }
 
-    // Get folders that the user has access to
+    // Get folders
     const folders = await prisma.reportFolder.findMany({
       where: whereClause,
       include: {
@@ -42,6 +60,17 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             createdAt: true
+          }
+        },
+        visibleToStaff: {
+          include: {
+            staff: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
           }
         },
         _count: {
@@ -64,7 +93,27 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(folders)
+    // Filter folders based on user role and individual staff access
+    let filteredFolders = folders
+    if (user.role === 'STAFF') {
+      // Get the staff member for this user
+      const staffMember = await prisma.staff.findUnique({
+        where: { userId: user.userId }
+      })
+      
+      if (staffMember) {
+        // Staff can only see folders that they have explicit access to
+        filteredFolders = folders.filter(folder => 
+          folder.visibleToStaff.some(access => 
+            access.staffId === staffMember.id && access.canView
+          )
+        )
+      } else {
+        filteredFolders = []
+      }
+    }
+
+    return NextResponse.json(filteredFolders)
   } catch (error) {
     console.error('Error fetching folders:', error)
     return NextResponse.json(
@@ -76,35 +125,80 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { name, description, parentId, createdBy, visibility } = body
-
-    if (!name || !createdBy) {
+    // Check authentication
+    const token = request.headers.get('authorization')?.replace('Bearer ', '')
+    if (!token) {
       return NextResponse.json(
-        { message: 'Name and created by are required' },
+        { message: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+
+    const user = await verifyToken(token)
+    if (!user) {
+      return NextResponse.json(
+        { message: 'Invalid token' },
+        { status: 401 }
+      )
+    }
+
+    // Only coaches and admins can create report folders
+    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
+      return NextResponse.json(
+        { message: 'Access denied' },
+        { status: 403 }
+      )
+    }
+
+    const body = await request.json()
+    const { name, description, parentId, staffAccess } = body
+
+    if (!name) {
+      return NextResponse.json(
+        { message: 'Name is required' },
         { status: 400 }
       )
     }
 
-    // Create the folder
+    // Create the folder with staff access controls
+    const folderData: any = {
+      name,
+      description: description || null,
+      parentId: parentId || null,
+      createdBy: user.userId
+    }
+
+    // Only add visibleToStaff if there are staff access entries
+    if (staffAccess && staffAccess.length > 0) {
+      folderData.visibleToStaff = {
+        create: staffAccess.map((access: { staffId: string; canView: boolean }) => ({
+          staffId: access.staffId,
+          canView: access.canView
+        }))
+      }
+    }
+
     const folder = await prisma.reportFolder.create({
-      data: {
-        name,
-        description: description || null,
-        parentId: parentId || null,
-        createdBy
-      },
+      data: folderData,
       include: {
         parent: true,
         children: true,
-        reports: true
+        reports: true,
+        visibleToStaff: {
+          include: {
+            staff: {
+              select: {
+                id: true,
+                name: true,
+                email: true
+              }
+            }
+          }
+        }
       }
     })
 
-    return NextResponse.json({
-      message: 'Folder created successfully',
-      folder
-    })
+    return NextResponse.json(folder, { status: 201 })
   } catch (error) {
     console.error('Error creating folder:', error)
     return NextResponse.json(

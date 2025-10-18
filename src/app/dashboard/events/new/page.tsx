@@ -171,7 +171,7 @@ export default function NewEventPage() {
               { type: 'MEDICAL', label: 'Medical', defaultIcon: 'Heart' },
               { type: 'RECOVERY', label: 'Recovery', defaultIcon: 'Zap' },
               { type: 'MEAL', label: 'Meal', defaultIcon: 'MealPlate' },
-              { type: 'COFFEE', label: 'Coffee', defaultIcon: 'CoffeeCup' },
+              { type: 'REST', label: 'Rest', defaultIcon: 'BedTime' },
               { type: 'OTHER', label: 'Other', defaultIcon: 'Calendar' }
             ].map(({ type, label, defaultIcon }) => (
               <button
@@ -180,7 +180,8 @@ export default function NewEventPage() {
                 onClick={() => setFormData(prev => ({ 
                   ...prev, 
                   type,
-                  icon: prev.icon === prev.icon ? defaultIcon : prev.icon // Keep current icon or set default
+                  // Keep the current icon when changing type - don't override user selection
+                  icon: prev.icon
                 }))}
                 className={`p-4 border-2 rounded-lg text-center ${
                   formData.type === type

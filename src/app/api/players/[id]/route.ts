@@ -132,43 +132,90 @@ export async function DELETE(
   try {
     const { id: playerId } = await params
 
-    console.log('Attempting to delete player:', playerId)
+    console.log('🗑️ Attempting to delete player:', playerId)
 
-    // Use direct SQL to avoid Prisma enum issues
-    const player = await prisma.$queryRaw`
-      SELECT p.*, u.id as userId 
-      FROM players p 
-      LEFT JOIN users u ON p.userId = u.id 
-      WHERE p.id = ${playerId}
-    `
+    if (!playerId) {
+      console.log('❌ No player ID provided')
+      return NextResponse.json(
+        { message: 'Player ID is required' },
+        { status: 400 }
+      )
+    }
 
-    if (!player || (Array.isArray(player) && player.length === 0)) {
-      console.log('Player not found:', playerId)
+    // First check if player exists using Prisma
+    const player = await prisma.player.findUnique({
+      where: { id: playerId },
+      include: { user: true }
+    })
+
+    if (!player) {
+      console.log('❌ Player not found:', playerId)
       return NextResponse.json(
         { message: 'Player not found' },
         { status: 404 }
       )
     }
 
-    const playerData = Array.isArray(player) ? player[0] : player
-    console.log('Found player:', playerData.name, 'User ID:', playerData.userId)
+    console.log('✅ Found player:', player.name, 'User ID:', player.userId)
 
-    // Delete the player record using direct SQL
-    await prisma.$executeRaw`DELETE FROM players WHERE id = ${playerId}`
+    // Delete related records first (due to foreign key constraints)
+    try {
+      // Delete player media files
+      await prisma.playerMedia.deleteMany({
+        where: { playerId }
+      })
+      console.log('✅ Deleted player media files')
 
-    // Delete the associated user record
-    await prisma.$executeRaw`DELETE FROM users WHERE id = ${playerData.userId}`
+      // Delete player notes
+      await prisma.playerNote.deleteMany({
+        where: { playerId }
+      })
+      console.log('✅ Deleted player notes')
 
-    console.log('Successfully deleted player:', playerId)
+      // Delete event participants
+      await prisma.eventParticipant.deleteMany({
+        where: { playerId }
+      })
+      console.log('✅ Deleted event participants')
+    } catch (relatedError) {
+      console.log('⚠️ Warning: Some related records could not be deleted:', relatedError)
+      // Continue with player deletion even if some related records fail
+    }
+
+    // Delete the player record
+    await prisma.player.delete({
+      where: { id: playerId }
+    })
+    console.log('✅ Deleted player record')
+
+    // Delete the associated user record if it exists
+    if (player.userId) {
+      await prisma.user.delete({
+        where: { id: player.userId }
+      })
+      console.log('✅ Deleted user record')
+    }
+
+    console.log('🎉 Successfully deleted player:', playerId)
 
     return NextResponse.json(
       { message: 'Player deleted successfully' },
       { status: 200 }
     )
   } catch (error) {
-    console.error('Error deleting player:', error)
+    console.error('💥 Error deleting player:', error)
+    console.error('💥 Error details:', {
+      name: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace'
+    })
+    
     return NextResponse.json(
-      { message: 'Internal server error', error: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        message: 'Failed to delete player', 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        details: error instanceof Error ? error.stack : 'No details available'
+      },
       { status: 500 }
     )
   }

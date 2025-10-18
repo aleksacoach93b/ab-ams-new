@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, Plus, Search, Edit, Trash2, Eye, Filter, X } from 'lucide-react'
 import Link from 'next/link'
+import { useTheme } from '@/contexts/ThemeContext'
 
 interface User {
   id: string
@@ -19,6 +20,7 @@ interface User {
 }
 
 export default function UsersPage() {
+  const { colorScheme } = useTheme()
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -121,23 +123,23 @@ export default function UsersPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading users...</div>
+      <div className="flex items-center justify-center h-64" style={{ backgroundColor: colorScheme.background }}>
+        <div style={{ color: colorScheme.textSecondary }}>Loading users...</div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ backgroundColor: colorScheme.background }}>
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <Link href="/dashboard/admin" className="text-gray-600 hover:text-gray-900">
+          <Link href="/dashboard/admin" style={{ color: colorScheme.textSecondary }}>
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">User Management</h1>
-            <p className="text-gray-600">Manage system users and their permissions</p>
+            <h1 className="text-2xl font-semibold" style={{ color: colorScheme.text }}>User Management</h1>
+            <p style={{ color: colorScheme.textSecondary }}>Manage system users and their permissions</p>
           </div>
         </div>
         <Link href="/dashboard/players/new" className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center space-x-2">
@@ -148,51 +150,63 @@ export default function UsersPage() {
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <div className="text-2xl font-semibold text-gray-900">{users.length}</div>
-          <div className="text-sm text-gray-500">Total Users</div>
+        <div className="rounded-lg shadow p-4" style={{ backgroundColor: colorScheme.surface }}>
+          <div className="text-2xl font-semibold" style={{ color: colorScheme.text }}>{users.length}</div>
+          <div className="text-sm" style={{ color: colorScheme.textSecondary }}>Total Users</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="rounded-lg shadow p-4" style={{ backgroundColor: colorScheme.surface }}>
           <div className="text-2xl font-semibold text-blue-600">
             {users.filter(u => u.role === 'COACH').length}
           </div>
-          <div className="text-sm text-gray-500">Coaches</div>
+          <div className="text-sm" style={{ color: colorScheme.textSecondary }}>Coaches</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="rounded-lg shadow p-4" style={{ backgroundColor: colorScheme.surface }}>
           <div className="text-2xl font-semibold text-green-600">
             {users.filter(u => u.role === 'PLAYER').length}
           </div>
-          <div className="text-sm text-gray-500">Players</div>
+          <div className="text-sm" style={{ color: colorScheme.textSecondary }}>Players</div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="rounded-lg shadow p-4" style={{ backgroundColor: colorScheme.surface }}>
           <div className="text-2xl font-semibold text-red-600">
             {users.filter(u => u.role === 'ADMIN').length}
           </div>
-          <div className="text-sm text-gray-500">Admins</div>
+          <div className="text-sm" style={{ color: colorScheme.textSecondary }}>Admins</div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="rounded-lg shadow p-4" style={{ backgroundColor: colorScheme.surface }}>
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4" style={{ color: colorScheme.textSecondary }} />
               <input
                 type="text"
                 placeholder="Search users..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                style={{ 
+                  backgroundColor: colorScheme.background,
+                  borderColor: colorScheme.border,
+                  color: colorScheme.text,
+                  border: `1px solid ${colorScheme.border}`
+                }}
               />
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Filter className="h-4 w-4 text-gray-400" />
+            <Filter className="h-4 w-4" style={{ color: colorScheme.textSecondary }} />
             <select
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              className="rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-transparent"
+              style={{ 
+                backgroundColor: colorScheme.background,
+                borderColor: colorScheme.border,
+                color: colorScheme.text,
+                border: `1px solid ${colorScheme.border}`
+              }}
             >
               <option value="ALL">All Roles</option>
               <option value="ADMIN">Admin</option>
@@ -204,45 +218,45 @@ export default function UsersPage() {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="rounded-lg shadow overflow-hidden" style={{ backgroundColor: colorScheme.surface }}>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full" style={{ borderColor: colorScheme.border }}>
+            <thead style={{ backgroundColor: colorScheme.background }}>
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colorScheme.textSecondary }}>
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colorScheme.textSecondary }}>
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colorScheme.textSecondary }}>
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colorScheme.textSecondary }}>
                   Last Login
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colorScheme.textSecondary }}>
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody style={{ borderColor: colorScheme.border }}>
               {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} style={{ borderBottom: `1px solid ${colorScheme.border}` }}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-sm font-medium text-gray-700">
+                        <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: colorScheme.primary }}>
+                          <span className="text-sm font-medium text-white">
                             {user.firstName[0]}{user.lastName[0]}
                           </span>
                         </div>
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium" style={{ color: colorScheme.text }}>
                           {user.firstName} {user.lastName}
                         </div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="text-sm" style={{ color: colorScheme.textSecondary }}>{user.email}</div>
                       </div>
                     </div>
                   </td>
@@ -267,7 +281,7 @@ export default function UsersPage() {
                       {user.isActive ? 'Active' : 'Inactive'}
                     </button>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: colorScheme.textSecondary }}>
                     {user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'Never'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -302,7 +316,7 @@ export default function UsersPage() {
         </div>
         
         {filteredUsers.length === 0 && (
-          <div className="text-center py-8 text-gray-500">
+          <div className="text-center py-8" style={{ color: colorScheme.textSecondary }}>
             {searchTerm || filterRole !== 'ALL' 
               ? 'No users found matching your criteria' 
               : 'No users found'}
@@ -313,12 +327,12 @@ export default function UsersPage() {
       {/* User Details Modal - Only for Admin/Coach users */}
       {showUserModal && selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold">User Details</h2>
+          <div className="rounded-lg max-w-md w-full" style={{ backgroundColor: colorScheme.surface }}>
+            <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: colorScheme.border }}>
+              <h2 className="text-xl font-semibold" style={{ color: colorScheme.text }}>User Details</h2>
               <button
                 onClick={() => setShowUserModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                style={{ color: colorScheme.textSecondary }}
               >
                 <X className="h-6 w-6" />
               </button>
@@ -326,43 +340,48 @@ export default function UsersPage() {
             
             <div className="p-6 space-y-4">
               <div className="flex items-center space-x-4">
-                <div className="h-12 w-12 rounded-full bg-gray-300 flex items-center justify-center">
-                  <span className="text-lg font-medium text-gray-700">
+                <div className="h-12 w-12 rounded-full flex items-center justify-center" style={{ backgroundColor: colorScheme.primary }}>
+                  <span className="text-lg font-medium text-white">
                     {selectedUser.firstName[0]}{selectedUser.lastName[0]}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium">{selectedUser.firstName} {selectedUser.lastName}</h3>
-                  <p className="text-gray-600">{selectedUser.email}</p>
+                  <h3 className="text-lg font-medium" style={{ color: colorScheme.text }}>{selectedUser.firstName} {selectedUser.lastName}</h3>
+                  <p style={{ color: colorScheme.textSecondary }}>{selectedUser.email}</p>
                 </div>
               </div>
               
               <div className="space-y-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Role</label>
-                  <p className="text-sm text-gray-900">{selectedUser.role}</p>
+                  <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Role</label>
+                  <p className="text-sm" style={{ color: colorScheme.text }}>{selectedUser.role}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Status</label>
-                  <p className="text-sm text-gray-900">{selectedUser.isActive ? 'Active' : 'Inactive'}</p>
+                  <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Status</label>
+                  <p className="text-sm" style={{ color: colorScheme.text }}>{selectedUser.isActive ? 'Active' : 'Inactive'}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Created</label>
-                  <p className="text-sm text-gray-900">{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
+                  <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Created</label>
+                  <p className="text-sm" style={{ color: colorScheme.text }}>{new Date(selectedUser.createdAt).toLocaleDateString()}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Last Login</label>
-                  <p className="text-sm text-gray-900">
+                  <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Last Login</label>
+                  <p className="text-sm" style={{ color: colorScheme.text }}>
                     {selectedUser.lastLogin ? new Date(selectedUser.lastLogin).toLocaleDateString() : 'Never'}
                   </p>
                 </div>
               </div>
             </div>
             
-            <div className="flex justify-end space-x-3 p-6 border-t">
+            <div className="flex justify-end space-x-3 p-6 border-t" style={{ borderColor: colorScheme.border }}>
               <button
                 onClick={() => setShowUserModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 rounded-lg"
+                style={{ 
+                  color: colorScheme.text,
+                  backgroundColor: colorScheme.background,
+                  border: `1px solid ${colorScheme.border}`
+                }}
               >
                 Close
               </button>
@@ -383,12 +402,12 @@ export default function UsersPage() {
       {/* Edit User Modal */}
       {showEditModal && editingUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-xl font-semibold">Edit User</h2>
+          <div className="rounded-lg max-w-md w-full" style={{ backgroundColor: colorScheme.surface }}>
+            <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: colorScheme.border }}>
+              <h2 className="text-xl font-semibold" style={{ color: colorScheme.text }}>Edit User</h2>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                style={{ color: colorScheme.textSecondary }}
               >
                 <X className="h-6 w-6" />
               </button>
@@ -396,37 +415,61 @@ export default function UsersPage() {
             
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">First Name</label>
+                <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>First Name</label>
                 <input
                   type="text"
                   defaultValue={editingUser.firstName}
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  style={{ 
+                    backgroundColor: colorScheme.background,
+                    borderColor: colorScheme.border,
+                    color: colorScheme.text,
+                    border: `1px solid ${colorScheme.border}`
+                  }}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Last Name</label>
                 <input
                   type="text"
                   defaultValue={editingUser.lastName}
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  style={{ 
+                    backgroundColor: colorScheme.background,
+                    borderColor: colorScheme.border,
+                    color: colorScheme.text,
+                    border: `1px solid ${colorScheme.border}`
+                  }}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Email</label>
                 <input
                   type="email"
                   defaultValue={editingUser.email}
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  style={{ 
+                    backgroundColor: colorScheme.background,
+                    borderColor: colorScheme.border,
+                    color: colorScheme.text,
+                    border: `1px solid ${colorScheme.border}`
+                  }}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">Role</label>
+                <label className="block text-sm font-medium" style={{ color: colorScheme.textSecondary }}>Role</label>
                 <select
                   defaultValue={editingUser.role}
-                  className="mt-1 block w-full border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="mt-1 block w-full rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                  style={{ 
+                    backgroundColor: colorScheme.background,
+                    borderColor: colorScheme.border,
+                    color: colorScheme.text,
+                    border: `1px solid ${colorScheme.border}`
+                  }}
                 >
                   <option value="ADMIN">Admin</option>
                   <option value="COACH">Coach</option>
@@ -439,18 +482,24 @@ export default function UsersPage() {
                 <input
                   type="checkbox"
                   defaultChecked={editingUser.isActive}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 rounded"
+                  style={{ borderColor: colorScheme.border }}
                 />
-                <label className="ml-2 block text-sm text-gray-700">
+                <label className="ml-2 block text-sm" style={{ color: colorScheme.textSecondary }}>
                   Active
                 </label>
               </div>
             </div>
             
-            <div className="flex justify-end space-x-3 p-6 border-t">
+            <div className="flex justify-end space-x-3 p-6 border-t" style={{ borderColor: colorScheme.border }}>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+                className="px-4 py-2 rounded-lg"
+                style={{ 
+                  color: colorScheme.text,
+                  backgroundColor: colorScheme.background,
+                  border: `1px solid ${colorScheme.border}`
+                }}
               >
                 Cancel
               </button>
