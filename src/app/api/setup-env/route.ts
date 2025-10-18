@@ -29,7 +29,7 @@ export async function POST() {
           step5: 'Redeploy the application'
         },
         requiredVars: {
-          DATABASE_URL: 'postgresql://postgres:Teodor06022025@db.jgcjfqcswnzliwzjbtje.supabase.co:5432/postgres',
+          DATABASE_URL: 'postgresql://postgres.jgcjfqcswnzliwzjbtje:Teodor06022025@aws-1-eu-west-1.pooler.supabase.com:5432/postgres',
           JWT_SECRET: 'ab-ams-super-secret-jwt-key-2024-production',
           NEXTAUTH_SECRET: 'ab-ams-nextauth-secret-2024-production',
           NEXTAUTH_URL: 'https://ab-ams.vercel.app',

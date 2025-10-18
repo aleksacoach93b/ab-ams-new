@@ -182,7 +182,7 @@ export default function SetupEnvPage() {
                   
                   <div className="mt-4 bg-gray-900 rounded-lg p-4 overflow-x-auto">
                     <pre className="text-green-400 text-xs">
-{`DATABASE_URL = postgresql://postgres:Teodor06022025@db.jgcjfqcswnzliwzjbtje.supabase.co:5432/postgres
+{`DATABASE_URL = postgresql://postgres.jgcjfqcswnzliwzjbtje.params:Teodor06022025@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
 JWT_SECRET = ab-ams-super-secret-jwt-key-2024-production
 NEXTAUTH_SECRET = ab-ams-nextauth-secret-2024-production
 NEXTAUTH_URL = https://ab-ams.vercel.app

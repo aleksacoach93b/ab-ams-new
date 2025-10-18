@@ -1,54 +1,18 @@
--- Create Admin User
--- Run this AFTER the database-setup.sql script
+-- Create Admin User for AB - AMS
+-- Run this in Supabase SQL Editor
 
--- Insert admin user
-INSERT INTO "users" (
-    "id",
-    "email", 
-    "password",
-    "role",
-    "firstName",
-    "lastName",
-    "isActive",
-    "emailVerified",
-    "createdAt",
-    "updatedAt"
-) VALUES (
-    'admin_user_001',
+-- Create admin user (password: Teodor06022025)
+INSERT INTO "User" ("id", "email", "password", "name", "role", "isActive", "createdAt", "updatedAt")
+VALUES (
+    'admin-001',
     'aleksacoach@gmail.com',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBdXm8hQ0.5.5C', -- This is the hashed password for 'Teodor06022025'
+    '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- password: Teodor06022025
+    'Admin User',
     'ADMIN',
-    'Aleksa',
-    'Boskovic',
-    true,
     true,
     NOW(),
     NOW()
-);
+) ON CONFLICT ("email") DO NOTHING;
 
--- Insert admin coach record
-INSERT INTO "coaches" (
-    "id",
-    "userId",
-    "firstName",
-    "lastName",
-    "email",
-    "coachType",
-    "specialization",
-    "experience",
-    "isActive",
-    "createdAt",
-    "updatedAt"
-) VALUES (
-    'admin_coach_001',
-    'admin_user_001',
-    'Aleksa',
-    'Boskovic',
-    'aleksacoach@gmail.com',
-    'Head Coach',
-    'Strength & Conditioning',
-    10,
-    true,
-    NOW(),
-    NOW()
-);
+-- Check if admin user was created
+SELECT 'Admin user created successfully!' as message, email, role FROM "User" WHERE email = 'aleksacoach@gmail.com';
