@@ -11,14 +11,10 @@ if (!JWT_SECRET) {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🔐 Login request received')
+    
     const { email, password } = await request.json()
-
-    // Get client information for tracking
-    const ipAddress = request.headers.get('x-forwarded-for') || 
-                     request.headers.get('x-real-ip') || 
-                     request.ip || 
-                     'unknown'
-    const userAgent = request.headers.get('user-agent') || 'unknown'
+    console.log('🔐 Login attempt for:', email)
 
     if (!email || !password) {
       return NextResponse.json(
@@ -33,39 +29,17 @@ export async function POST(request: NextRequest) {
     })
 
     if (!user) {
-      // Log failed login attempt
-      await prisma.loginLog.create({
-        data: {
-          userId: '', // No user ID for invalid email
-          email: email,
-          role: 'PLAYER', // Default role
-          ipAddress: ipAddress,
-          userAgent: userAgent,
-          success: false,
-          failureReason: 'Invalid email'
-        }
-      }).catch(() => {}) // Ignore errors for logging
-      
+      console.log('❌ User not found:', email)
       return NextResponse.json(
         { message: 'Invalid email or password' },
         { status: 401 }
       )
     }
 
+    console.log('✅ User found:', user.email, user.role)
+
     if (!user.isActive) {
-      // Log failed login attempt for inactive account
-      await prisma.loginLog.create({
-        data: {
-          userId: user.id,
-          email: user.email,
-          role: user.role,
-          ipAddress: ipAddress,
-          userAgent: userAgent,
-          success: false,
-          failureReason: 'Account deactivated'
-        }
-      }).catch(() => {}) // Ignore errors for logging
-      
+      console.log('❌ User account is inactive')
       return NextResponse.json(
         { message: 'Account is deactivated' },
         { status: 401 }
@@ -73,47 +47,34 @@ export async function POST(request: NextRequest) {
     }
 
     // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password || '')
+    let isValidPassword = false
+    
+    if (user.password) {
+      // Check if it's a bcrypt hash or plain text
+      if (user.password.startsWith('$2')) {
+        // It's a bcrypt hash
+        isValidPassword = await bcrypt.compare(password, user.password)
+      } else {
+        // It's plain text
+        isValidPassword = password === user.password
+      }
+    }
     
     if (!isValidPassword) {
-      // Log failed login attempt for invalid password
-      await prisma.loginLog.create({
-        data: {
-          userId: user.id,
-          email: user.email,
-          role: user.role,
-          ipAddress: ipAddress,
-          userAgent: userAgent,
-          success: false,
-          failureReason: 'Invalid password'
-        }
-      }).catch(() => {}) // Ignore errors for logging
-      
+      console.log('❌ Invalid password for:', email)
       return NextResponse.json(
         { message: 'Invalid email or password' },
         { status: 401 }
       )
     }
 
+    console.log('✅ Password valid for:', email)
+
     // Update last login
     await prisma.user.update({
       where: { id: user.id },
       data: { 
-        lastLoginAt: new Date(),
-        loginIp: ipAddress,
-        userAgent: userAgent
-      }
-    })
-
-    // Create login log entry
-    await prisma.loginLog.create({
-      data: {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-        ipAddress: ipAddress,
-        userAgent: userAgent,
-        success: true
+        lastLoginAt: new Date()
       }
     })
 
@@ -128,6 +89,8 @@ export async function POST(request: NextRequest) {
       { expiresIn: '24h' }
     )
 
+    console.log('✅ Login successful for:', email)
+
     // Return user data without password
     const { password: _, ...userWithoutPassword } = user
 
@@ -138,7 +101,7 @@ export async function POST(request: NextRequest) {
     })
 
   } catch (error) {
-    console.error('Login error:', error)
+    console.error('💥 Login error:', error)
     return NextResponse.json(
       { 
         message: 'Internal server error', 

@@ -4,11 +4,9 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: NextRequest) {
   try {
     console.log('📁 Simple report folder creation request received')
-    
-    const body = await request.json()
-    const { name, description } = body
 
-    console.log('📝 Request body:', { name, description })
+    const body = await request.json()
+    const { name, description, parentId } = body
 
     if (!name) {
       return NextResponse.json(
@@ -17,21 +15,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create the folder
     const folder = await prisma.reportFolder.create({
       data: {
         name,
-        description: description || null
-      }
+        description: description || null,
+        parentId: parentId || null,
+      },
     })
 
     console.log('✅ Report folder created successfully:', folder.id)
 
     return NextResponse.json(folder, { status: 201 })
   } catch (error) {
-    console.error('❌ Error creating report folder:', error)
+    console.error('❌ Error creating report folder (simple):', error)
     return NextResponse.json(
-      { message: 'Internal server error' },
+      {
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }
