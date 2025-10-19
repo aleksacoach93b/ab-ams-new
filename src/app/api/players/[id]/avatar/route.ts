@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
-import { existsSync } from 'fs'
 
 export async function POST(
   request: NextRequest,
@@ -52,25 +49,14 @@ export async function POST(
       )
     }
 
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'public', 'uploads', 'avatars')
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true })
-    }
-
-    // Generate unique filename
-    const timestamp = Date.now()
-    const fileExtension = file.name.split('.').pop()
-    const fileName = `player_${id}_${timestamp}.${fileExtension}`
-    const filePath = join(uploadsDir, fileName)
-
-    // Save file to disk
+    // For Vercel deployment, store as base64 instead of file system
+    // Convert file to base64 and store directly in database
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    await writeFile(filePath, buffer)
-
-    // Update player imageUrl in database
-    const avatarUrl = `/uploads/avatars/${fileName}`
+    const base64Image = `data:${file.type};base64,${buffer.toString('base64')}`
+    
+    // Use base64 image as avatar URL
+    const avatarUrl = base64Image
     console.log('📸 Updating player with imageUrl:', avatarUrl)
     
     const updatedPlayer = await prisma.player.update({
