@@ -125,30 +125,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check authentication
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json(
-        { message: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json(
-        { message: 'Invalid token' },
-        { status: 401 }
-      )
-    }
-
-    // Only coaches and admins can create report folders
-    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
-      return NextResponse.json(
-        { message: 'Access denied' },
-        { status: 403 }
-      )
-    }
+    // Authentication is handled by middleware
 
     const body = await request.json()
     const { name, description, parentId, staffAccess } = body
@@ -160,12 +137,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create the folder with staff access controls
+    // Create the folder
     const folderData: any = {
       name,
       description: description || null,
-      parentId: parentId || null,
-      createdBy: user.userId
+      parentId: parentId || null
     }
 
     // Only add visibleToStaff if there are staff access entries
