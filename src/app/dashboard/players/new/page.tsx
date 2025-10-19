@@ -102,7 +102,7 @@ export default function NewPlayerPage() {
       console.log('📝 Sending data to API:', apiData)
 
       // First create the player
-      const response = await fetch('/api/players', {
+      const response = await fetch('/api/players/route-simple', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
