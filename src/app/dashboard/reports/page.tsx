@@ -206,22 +206,16 @@ export default function ReportsPage() {
 
   const handleCreateFolder = async (name: string, description?: string) => {
     try {
-      const token = localStorage.getItem('token')
-      if (!token) {
-        console.error('No authentication token found')
-        return
-      }
+      console.log('Creating folder:', { name, description })
 
-      const response = await fetch('/api/reports/folders', {
+      const response = await fetch('/api/reports/route-new', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           name,
-          description,
-          parentId: selectedFolder?.id || null
+          description
         })
       })
 
@@ -912,7 +906,8 @@ function CreateFolderForm({ onSubmit, onCancel, colorScheme }: any) {
       <div className="flex space-x-3">
         <button
           type="submit"
-          className="flex-1 py-2 px-4 rounded-lg font-medium"
+          disabled={!name.trim()}
+          className="flex-1 py-2 px-4 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           style={{ 
             backgroundColor: colorScheme.primary, 
             color: 'white' 
