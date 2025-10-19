@@ -73,6 +73,8 @@ export async function POST(request: NextRequest) {
     console.log('📝 Request body:', body)
     
     const {
+      firstName,
+      lastName,
       name,
       email,
       password,
@@ -82,13 +84,16 @@ export async function POST(request: NextRequest) {
       dateOfBirth,
     } = body
 
-    console.log('🔍 Extracted fields:', { name, email, password: password ? '***' : 'missing', phone, position, jerseyNumber, dateOfBirth })
+    // Use name if provided, otherwise combine firstName and lastName
+    const playerName = name || (firstName && lastName ? `${firstName} ${lastName}`.trim() : '')
+
+    console.log('🔍 Extracted fields:', { firstName, lastName, name: playerName, email, password: password ? '***' : 'missing', phone, position, jerseyNumber, dateOfBirth })
 
     // Validate required fields
-    if (!name || !email || !password) {
+    if (!playerName || !email || !password) {
       console.log('❌ Validation failed: missing required fields')
       console.log('📊 Field status:', { 
-        name: name ? '✅' : '❌', 
+        name: playerName ? '✅' : '❌', 
         email: email ? '✅' : '❌', 
         password: password ? '✅' : '❌' 
       })
@@ -136,7 +141,7 @@ export async function POST(request: NextRequest) {
     // Create player profile
     const player = await prisma.player.create({
       data: {
-        name,
+        name: playerName,
         email,
         phone,
         position,
