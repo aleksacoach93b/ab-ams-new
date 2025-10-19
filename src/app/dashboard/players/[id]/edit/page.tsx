@@ -104,9 +104,9 @@ export default function EditPlayerPage() {
       const formData = new FormData()
       formData.append('avatar', file)
 
-      console.log('📸 Sending request to:', `/api/players/${playerId}/avatar`)
+      console.log('📸 Sending request to:', `/api/players/${playerId}/avatar-new`)
 
-      const response = await fetch(`/api/players/${playerId}/avatar`, {
+      const response = await fetch(`/api/players/${playerId}/avatar-new`, {
         method: 'POST',
         body: formData,
       })
