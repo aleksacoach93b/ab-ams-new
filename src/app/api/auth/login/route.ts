@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import bcrypt from 'bcryptjs'
-import jwt from 'jsonwebtoken'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'ab-ams-super-secret-jwt-key-2024-production'
+import { generateToken } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,11 +59,11 @@ export async function POST(request: NextRequest) {
     })
 
     // Create JWT token
-    const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    )
+    const token = await generateToken({
+      userId: user.id,
+      email: user.email,
+      role: user.role
+    })
 
     // Return user data without password
     const { password: _, ...userWithoutPassword } = user
