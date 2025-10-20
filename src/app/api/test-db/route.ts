@@ -1,52 +1,43 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    console.log('🔍 Testing database connection...')
-    console.log('📍 DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set')
-    console.log('🔑 JWT_SECRET:', process.env.JWT_SECRET ? 'Set' : 'Not set')
+    console.log('Testing database connection...')
     
     // Test basic connection
     await prisma.$connect()
-    console.log('✅ Database connection successful!')
+    console.log('✅ Database connected successfully')
     
-    // Test simple query
+    // Test query
     const userCount = await prisma.user.count()
-    console.log(`📊 Users in database: ${userCount}`)
+    console.log('✅ User count:', userCount)
     
-    // Test admin user
-    const admin = await prisma.user.findUnique({
+    // Test specific user
+    const adminUser = await prisma.user.findUnique({
       where: { email: 'aleksacoach@gmail.com' }
     })
-    
-    if (admin) {
-      console.log('✅ Admin user found:', admin.email)
-    } else {
-      console.log('❌ Admin user not found')
-    }
+    console.log('✅ Admin user found:', adminUser ? 'YES' : 'NO')
     
     return NextResponse.json({
       success: true,
       message: 'Database connection successful',
       userCount,
-      adminExists: !!admin,
-      adminEmail: admin ? admin.email : null,
-      environment: {
-        databaseUrlSet: !!process.env.DATABASE_URL,
-        jwtSecretSet: !!process.env.JWT_SECRET
-      }
+      adminUserExists: !!adminUser,
+      adminUser: adminUser ? {
+        id: adminUser.id,
+        email: adminUser.email,
+        role: adminUser.role,
+        isActive: adminUser.isActive
+      } : null
     })
     
   } catch (error) {
-    console.error('❌ Database test failed:', error)
+    console.error('❌ Database connection failed:', error)
     return NextResponse.json({
       success: false,
-      error: error.message,
-      environment: {
-        databaseUrlSet: !!process.env.DATABASE_URL,
-        jwtSecretSet: !!process.env.JWT_SECRET
-      }
+      message: 'Database connection failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   } finally {
     await prisma.$disconnect()
