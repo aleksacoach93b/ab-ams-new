@@ -47,6 +47,14 @@ export async function GET(request: NextRequest) {
                     position: true,
                     imageUrl: true
                   }
+                },
+                staff: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    position: true
+                  }
                 }
               }
             },
@@ -69,6 +77,14 @@ export async function GET(request: NextRequest) {
                     email: true,
                     position: true,
                     imageUrl: true
+                  }
+                },
+                staff: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    position: true
                   }
                 }
               }
@@ -93,6 +109,14 @@ export async function GET(request: NextRequest) {
                   email: true,
                   position: true,
                   imageUrl: true
+                }
+              },
+              staff: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  position: true
                 }
               }
             }
@@ -161,6 +185,18 @@ export async function POST(request: NextRequest) {
         data: selectedPlayers.map((playerId: string) => ({
           eventId: event.id,
           playerId: playerId,
+          participantType: 'PLAYER'
+        })),
+      })
+    }
+
+    // Add staff participants if any
+    if (selectedStaff.length > 0) {
+      await prisma.eventParticipant.createMany({
+        data: selectedStaff.map((staffId: string) => ({
+          eventId: event.id,
+          staffId: staffId,
+          participantType: 'STAFF'
         })),
       })
     }
