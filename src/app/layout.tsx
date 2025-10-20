@@ -27,7 +27,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{
+          fontFamily: `${geistSans.style.fontFamily}, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif`,
+          WebkitFontSmoothing: 'antialiased',
+          MozOsxFontSmoothing: 'grayscale'
+        }}
       >
         <ThemeProvider>
           <AuthProvider>
