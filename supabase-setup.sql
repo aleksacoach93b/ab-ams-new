@@ -285,5 +285,8 @@ VALUES ('folder-001', 'Training Reports', 'Reports from training sessions', 'adm
 INSERT INTO "CoachNote" ("id", "title", "content", "authorId", "updatedAt") 
 VALUES ('note-001', 'Team Meeting Notes', 'Important points from team meeting', 'admin-001', CURRENT_TIMESTAMP);
 
+-- Add missing column to EventMedia
+ALTER TABLE "EventMedia" ADD COLUMN IF NOT EXISTS "uploadedAt" TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+
 -- Success message
 SELECT 'Database setup completed successfully!' as message;

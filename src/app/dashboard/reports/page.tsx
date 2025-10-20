@@ -208,7 +208,7 @@ export default function ReportsPage() {
     try {
       console.log('Creating folder:', { name, description })
 
-      const response = await fetch('/api/reports/route-simple', {
+      const response = await fetch('/api/reports/folders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

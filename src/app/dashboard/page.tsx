@@ -146,7 +146,7 @@ function StaffNotesList() {
               className="text-xs"
               style={{ color: colorScheme.textSecondary }}
             >
-              by {note.author.name || note.author.email}
+              by {note.author?.name || note.author?.email || 'Unknown'}
             </span>
             <span 
               className="text-xs"
