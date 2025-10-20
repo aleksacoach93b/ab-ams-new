@@ -403,7 +403,7 @@ export default function CoachNotes({ className = '' }: CoachNotesProps) {
                         className="text-sm font-medium"
                         style={{ color: colorScheme.text }}
                       >
-                        {note.author.name || note.author.email}
+                        {note.author?.name || note.author?.email || 'Unknown'}
                       </span>
                     </div>
                     <span 

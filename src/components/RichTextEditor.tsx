@@ -130,7 +130,7 @@ export default function RichTextEditor({
     { icon: Italic, command: 'italic', title: 'Italic', key: 'italic' },
     { icon: Underline, command: 'underline', title: 'Underline', key: 'underline' },
     { icon: Strikethrough, command: 'strikeThrough', title: 'Strikethrough', key: 'strikethrough' },
-    { icon: Quote, command: 'formatBlock', value: 'blockquote', title: 'Quote', key: 'quote' },
+    { icon: Quote, command: 'formatBlock', value: 'blockquote', title: 'Quote', key: 'quote-block' },
     { icon: List, command: 'insertUnorderedList', title: 'Bullet List', key: 'bullet-list' },
     { icon: ListOrdered, command: 'insertOrderedList', title: 'Numbered List', key: 'numbered-list' },
     { icon: Code, command: 'formatBlock', value: 'pre', title: 'Code Block', key: 'code-block' },
