@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { generateToken } from '@/lib/auth'
+import { generateToken, verifyPassword } from '@/lib/auth'
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     if (user.password) {
       if (user.password.startsWith('$2')) {
         // Bcrypt hash
-        isValidPassword = await bcrypt.compare(password, user.password)
+        isValidPassword = await verifyPassword(password, user.password)
       } else {
         // Plain text
         isValidPassword = password === user.password
