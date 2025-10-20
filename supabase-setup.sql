@@ -96,7 +96,9 @@ CREATE TABLE "Event" (
 CREATE TABLE "EventParticipant" (
     "id" TEXT NOT NULL,
     "eventId" TEXT NOT NULL,
-    "playerId" TEXT NOT NULL,
+    "playerId" TEXT,
+    "staffId" TEXT,
+    "participantType" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "EventParticipant_pkey" PRIMARY KEY ("id")
@@ -134,6 +136,7 @@ CREATE TABLE "ReportFolder" (
     "name" TEXT NOT NULL,
     "description" TEXT,
     "parentId" TEXT,
+    "createdBy" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -234,9 +237,11 @@ ALTER TABLE "Player" ADD CONSTRAINT "Player_teamId_fkey" FOREIGN KEY ("teamId") 
 ALTER TABLE "Staff" ADD CONSTRAINT "Staff_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "EventParticipant" ADD CONSTRAINT "EventParticipant_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "EventParticipant" ADD CONSTRAINT "EventParticipant_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "EventParticipant" ADD CONSTRAINT "EventParticipant_staffId_fkey" FOREIGN KEY ("staffId") REFERENCES "Staff"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "EventMedia" ADD CONSTRAINT "EventMedia_eventId_fkey" FOREIGN KEY ("eventId") REFERENCES "Event"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PlayerMedia" ADD CONSTRAINT "PlayerMedia_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "ReportFolder" ADD CONSTRAINT "ReportFolder_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "ReportFolder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ReportFolder" ADD CONSTRAINT "ReportFolder_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "Report" ADD CONSTRAINT "Report_folderId_fkey" FOREIGN KEY ("folderId") REFERENCES "ReportFolder"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "CoachNote" ADD CONSTRAINT "CoachNote_authorId_fkey" FOREIGN KEY ("authorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "CoachNoteStaffAccess" ADD CONSTRAINT "CoachNoteStaffAccess_noteId_fkey" FOREIGN KEY ("noteId") REFERENCES "CoachNote"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -273,8 +278,8 @@ INSERT INTO "Event" ("id", "title", "description", "date", "startTime", "endTime
 VALUES ('event-001', 'Training Session', 'Regular training session', '2025-01-20 10:00:00', '10:00', '12:00', 'TRAINING', 'dumbbell-realistic', CURRENT_TIMESTAMP);
 
 -- Create test report folder
-INSERT INTO "ReportFolder" ("id", "name", "description", "updatedAt") 
-VALUES ('folder-001', 'Training Reports', 'Reports from training sessions', CURRENT_TIMESTAMP);
+INSERT INTO "ReportFolder" ("id", "name", "description", "createdBy", "updatedAt") 
+VALUES ('folder-001', 'Training Reports', 'Reports from training sessions', 'admin-001', CURRENT_TIMESTAMP);
 
 -- Create test coach note
 INSERT INTO "CoachNote" ("id", "title", "content", "authorId", "updatedAt") 
