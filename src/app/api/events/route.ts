@@ -2,19 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { EventType } from '@prisma/client'
 
-const getEventColor = (type: string) => {
-  switch (type) {
-    case 'TRAINING': return '#F59E0B' // Orange
-    case 'MATCH': return '#EF4444' // Red
-    case 'MEETING': return '#3B82F6' // Blue
-    case 'MEDICAL': return '#10B981' // Green
-    case 'RECOVERY': return '#8B5CF6' // Purple
-    case 'MEAL': return '#F97316' // Orange-red
-    case 'REST': return '#6366F1' // Indigo
-    default: return '#6B7280' // Gray
-  }
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -52,52 +39,41 @@ export async function GET(request: NextRequest) {
           include: {
             participants: {
               include: {
-                player: true,
-                staff: true,
-              },
-            },
-            media: true,
-          },
-          orderBy: {
-            date: 'asc'
-          }
-        })
-      } else if (userRole === 'STAFF') {
-        // Find events where the staff is a participant
-        events = await prisma.event.findMany({
-          where: {
-            participants: {
-              some: {
-                staff: {
-                  userId: userId
+                player: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    position: true,
+                    imageUrl: true
+                  }
                 }
               }
-            }
-          },
-          include: {
-            participants: {
-              include: {
-                player: true,
-                staff: true,
-              },
             },
-            media: true,
+            media: true
           },
           orderBy: {
             date: 'asc'
           }
         })
       } else {
-        // For coaches and admins, show all events
+        // For coaches and admins, return all events
         events = await prisma.event.findMany({
           include: {
             participants: {
               include: {
-                player: true,
-                staff: true,
-              },
+                player: {
+                  select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    position: true,
+                    imageUrl: true
+                  }
+                }
+              }
             },
-            media: true,
+            media: true
           },
           orderBy: {
             date: 'asc'
@@ -105,16 +81,23 @@ export async function GET(request: NextRequest) {
         })
       }
     } else {
-      // If no user filter, show all events (for admin/coach views)
+      // Return all events if no user filter
       events = await prisma.event.findMany({
         include: {
           participants: {
             include: {
-              player: true,
-              staff: true,
-            },
+              player: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true,
+                  position: true,
+                  imageUrl: true
+                }
+              }
+            }
           },
-          media: true,
+          media: true
         },
         orderBy: {
           date: 'asc'
@@ -122,127 +105,13 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    // Transform events to map iconName to icon for frontend compatibility
-    const transformedEvents = events.map(event => ({
-      ...event,
-      icon: event.iconName || 'Calendar' // Map iconName to icon
-    }))
-
-    return NextResponse.json(transformedEvents)
+    return NextResponse.json(events)
   } catch (error) {
     console.error('Error fetching events:', error)
     return NextResponse.json(
-      { message: 'Internal server error' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function PUT(request: NextRequest) {
-  try {
-    console.log('📝 Event update request received')
-    
-    const body = await request.json()
-    console.log('📝 Request body:', body)
-    
-    const {
-      id,
-      title,
-      description,
-      type,
-      date,
-      startTime,
-      endTime,
-      location,
-      isAllDay,
-      isRecurring,
-      allowPlayerCreation,
-      allowPlayerReschedule,
-      icon,
-    } = body
-
-    console.log('🔍 Extracted fields:', { id, title, date, type, icon })
-
-    // Validate required fields
-    if (!id || !title || !date) {
-      console.log('❌ Validation failed: missing required fields')
-      console.log('📊 Field status:', { 
-        id: id ? '✅' : '❌', 
-        title: title ? '✅' : '❌', 
-        date: date ? '✅' : '❌' 
-      })
-      return NextResponse.json(
-        { message: 'ID, title and date are required' },
-        { status: 400 }
-      )
-    }
-
-    // Validate time format
-    const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/
-    if (startTime && !timeRegex.test(startTime)) {
-      return NextResponse.json(
-        { message: 'Invalid start time format' },
-        { status: 400 }
-      )
-    }
-    if (endTime && !timeRegex.test(endTime)) {
-      return NextResponse.json(
-        { message: 'Invalid end time format' },
-        { status: 400 }
-      )
-    }
-
-    console.log('🔄 Updating event in database...')
-    
-    // Update event
-    const event = await prisma.event.update({
-      where: { id },
-      data: {
-        title,
-        description,
-        type: (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
-          ? type.toUpperCase() as EventType 
-          : EventType.TRAINING,
-        startTime: startTime || '00:00',
-        endTime: endTime || '23:59',
-        isRecurring: isRecurring || false,
-        isAllDay: isAllDay || false,
-        allowPlayerCreation: allowPlayerCreation || false,
-        allowPlayerReschedule: allowPlayerReschedule || false,
-        iconName: icon || 'Dumbbell', // Use iconName field from schema
-      },
-      include: {
-        location: true,
-        team: true,
-        coach: true,
-      },
-    })
-
-    console.log('✅ Event updated successfully:', event.id, event.title, event.iconName)
-
-    // Transform event to map iconName to icon for frontend compatibility
-    const transformedEvent = {
-      ...event,
-      icon: event.iconName || 'Calendar'
-    }
-
-    return NextResponse.json(
-      { message: 'Event updated successfully', event: transformedEvent },
-      { status: 200 }
-    )
-  } catch (error) {
-    console.error('💥 Error updating event:', error)
-    console.error('💥 Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace'
-    })
-    
-    return NextResponse.json(
       { 
-        message: 'Failed to update event', 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: error instanceof Error ? error.stack : 'No details available'
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )
@@ -251,11 +120,7 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔍 Event creation request received')
-    
     const body = await request.json()
-    console.log('📝 Request body:', body)
-    
     const {
       title,
       description = '',
@@ -264,134 +129,48 @@ export async function POST(request: NextRequest) {
       startTime = '10:00',
       endTime = '11:00',
       location = '',
-      icon, // Icon from frontend
-      selectedPlayers = [], // Array of player IDs
-      selectedStaff = [], // Array of staff IDs
+      icon = 'dumbbell-realistic',
+      selectedPlayers = [],
+      selectedStaff = [],
     } = body
 
-    // Validate required fields
     if (!title || !date) {
-      console.log('❌ Validation failed: missing title or date')
       return NextResponse.json(
         { message: 'Title and date are required' },
         { status: 400 }
       )
     }
 
-    console.log('📅 Creating event with data:', {
-      title,
-      type,
-      date,
-      startTime,
-      endTime,
-      location,
-      icon,
-      selectedPlayers,
-      selectedStaff
-    })
-
-    // Set appropriate default icon based on event type
-    const getDefaultIcon = (eventType: string) => {
-      switch (eventType.toUpperCase()) {
-        case 'TRAINING': return 'dumbbell-realistic'
-        case 'MATCH': return 'football-ball-realistic'
-        case 'MEETING': return 'meeting-new'
-        case 'MEDICAL': return 'blood-sample-final'
-        case 'RECOVERY': return 'recovery-new'
-        case 'MEAL': return 'meal-plate'
-        case 'REST': return 'bed-time'
-        case 'OTHER': return 'stopwatch-whistle'
-        default: return 'dumbbell-realistic'
-      }
-    }
-
-    const finalEventType = (type && Object.values(EventType).includes(type.toUpperCase() as EventType)) 
-      ? type.toUpperCase() as EventType 
-      : EventType.TRAINING
-
-    // Create event first without participants
-    const eventData = {
-      title,
-      description,
-      type: finalEventType,
-      date: new Date(date),
-      startTime: startTime || '00:00',
-      endTime: endTime || '23:59',
-      location: location || null,
-      iconName: icon || getDefaultIcon(finalEventType), // Use selected icon or appropriate default
-    }
-
+    // Create event
     const event = await prisma.event.create({
-      data: eventData
+      data: {
+        title,
+        description,
+        type: type as EventType,
+        date: new Date(date),
+        startTime,
+        endTime,
+        location,
+        iconName: icon,
+      },
     })
-
-    console.log('✅ Event created successfully:', event.id)
 
     // Add participants if any
-    if (selectedPlayers.length > 0 || selectedStaff.length > 0) {
-      console.log('👥 Adding participants...')
-      
-      const participantData = [
-        // Add selected players
-        ...selectedPlayers.map((playerId: string) => ({
+    if (selectedPlayers.length > 0) {
+      await prisma.eventParticipant.createMany({
+        data: selectedPlayers.map((playerId: string) => ({
           eventId: event.id,
           playerId: playerId,
         })),
-        // Add selected staff
-        ...selectedStaff.map((staffId: string) => ({
-          eventId: event.id,
-          staffId: staffId,
-        }))
-      ]
-
-      if (participantData.length > 0) {
-        await prisma.eventParticipant.createMany({
-          data: participantData
-        })
-        console.log('✅ Participants added successfully')
-      }
+      })
     }
 
-    // Fetch the complete event with participants
-    const completeEvent = await prisma.event.findUnique({
-      where: { id: event.id },
-      include: {
-        participants: {
-          include: {
-            player: true,
-            staff: true,
-          }
-        }
-      }
-    })
+    return NextResponse.json(event, { status: 201 })
 
-    // Transform event to map iconName to icon for frontend compatibility
-    const transformedEvent = {
-      ...completeEvent,
-      icon: completeEvent?.iconName || 'Calendar'
-    }
-
-    return NextResponse.json(
-      { message: 'Event created successfully', event: transformedEvent },
-      { status: 201 }
-    )
   } catch (error) {
-    console.error('❌ Error creating event:', error)
-    console.error('Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      code: (error as any)?.code,
-      meta: (error as any)?.meta,
-      stack: error instanceof Error ? error.stack : undefined
-    })
+    console.error('Error creating event:', error)
     return NextResponse.json(
-      { 
-        message: 'Internal server error', 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: {
-          code: (error as any)?.code,
-          meta: (error as any)?.meta
-        }
-      },
+      { message: 'Internal server error' },
       { status: 500 }
     )
   }

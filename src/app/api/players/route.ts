@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { hashPassword } from '@/lib/auth'
+import bcrypt from 'bcryptjs'
 import { UserRole } from '@prisma/client'
 
 export async function GET(request: NextRequest) {
@@ -34,13 +34,7 @@ export async function GET(request: NextRequest) {
         imageUrl: player.imageUrl,
         phone: player.phone,
         dateOfBirth: player.dateOfBirth,
-        nationality: player.nationality,
-        height: player.height,
-        weight: player.weight,
-        preferredFoot: player.preferredFoot,
         jerseyNumber: player.jerseyNumber,
-        medicalInfo: player.medicalInfo,
-        emergencyContact: player.emergencyContact,
         team: player.team,
         user: player.user,
         createdAt: player.createdAt,
@@ -63,19 +57,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log('🔍 Player creation request received')
-    
-    // Ensure database connection
-    await prisma.$connect()
-    console.log('✅ Database connected')
-    
     const body = await request.json()
-    console.log('📝 Request body:', body)
-    
     const {
       firstName,
       lastName,
-      name,
       email,
       password,
       phone,
@@ -84,61 +69,42 @@ export async function POST(request: NextRequest) {
       dateOfBirth,
     } = body
 
-    // Use name if provided, otherwise combine firstName and lastName
-    const playerName = name || (firstName && lastName ? `${firstName} ${lastName}`.trim() : '')
+    const playerName = `${firstName} ${lastName}`.trim()
 
-    console.log('🔍 Extracted fields:', { firstName, lastName, name: playerName, email, password: password ? '***' : 'missing', phone, position, jerseyNumber, dateOfBirth })
-
-    // Validate required fields
     if (!playerName || !email || !password) {
-      console.log('❌ Validation failed: missing required fields')
-      console.log('📊 Field status:', { 
-        name: playerName ? '✅' : '❌', 
-        email: email ? '✅' : '❌', 
-        password: password ? '✅' : '❌' 
-      })
       return NextResponse.json(
         { message: 'Name, email, and password are required' },
         { status: 400 }
       )
     }
 
-    // Validate password strength
-    if (password.length < 6) {
-      console.log('❌ Validation failed: password too short')
-      return NextResponse.json(
-        { message: 'Password must be at least 6 characters long' },
-        { status: 400 }
-      )
-    }
-
     // Check if email already exists
     const existingUser = await prisma.user.findUnique({
-      where: { email }
+      where: { email: email.toLowerCase() }
     })
-    
+
     if (existingUser) {
-      console.log('❌ Email already exists:', email)
       return NextResponse.json(
-        { message: 'Email already exists. Please use a different email address.' },
+        { message: 'Email already exists' },
         { status: 400 }
       )
     }
 
-    console.log('👤 Creating user account...')
-    // Create user account first
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10)
+
+    // Create user
     const user = await prisma.user.create({
       data: {
-        email,
-        password: await hashPassword(password),
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        name: playerName,
         role: UserRole.PLAYER,
         isActive: true,
       },
     })
-    console.log('✅ User created:', user.id)
 
-    console.log('⚽ Creating player profile...')
-    // Create player profile
+    // Create player
     const player = await prisma.player.create({
       data: {
         name: playerName,
@@ -147,34 +113,17 @@ export async function POST(request: NextRequest) {
         position,
         jerseyNumber: jerseyNumber ? parseInt(jerseyNumber) : null,
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        status: 'ACTIVE',
         userId: user.id,
       },
-      include: {
-        user: true,
-        team: true,
-      },
     })
-    console.log('✅ Player created:', player.id)
 
-    return NextResponse.json(
-      { message: 'Player created successfully', player },
-      { status: 201 }
-    )
+    return NextResponse.json(player, { status: 201 })
+
   } catch (error) {
-    console.error('❌ Error creating player:', error)
+    console.error('Error creating player:', error)
     return NextResponse.json(
-      { 
-        message: 'Internal server error', 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: {
-          code: (error as any)?.code,
-          meta: (error as any)?.meta
-        }
-      },
+      { message: 'Internal server error' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }

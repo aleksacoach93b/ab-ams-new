@@ -1,35 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { verifyToken } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    // Check authentication
-    const token = request.headers.get('authorization')?.replace('Bearer ', '')
-    if (!token) {
-      return NextResponse.json(
-        { message: 'Authentication required' },
-        { status: 401 }
-      )
-    }
-
-    const user = await verifyToken(token)
-    if (!user) {
-      return NextResponse.json(
-        { message: 'Invalid token' },
-        { status: 401 }
-      )
-    }
-
-    // Only coaches and admins can view coach notes
-    if (user.role !== 'ADMIN' && user.role !== 'COACH') {
-      return NextResponse.json(
-        { message: 'Access denied' },
-        { status: 403 }
-      )
-    }
-
-    // Get query parameters
     const { searchParams } = new URL(request.url)
     const limit = parseInt(searchParams.get('limit') || '20')
     const offset = parseInt(searchParams.get('offset') || '0')
@@ -65,31 +38,14 @@ export async function GET(request: NextRequest) {
       skip: offset
     })
 
-    // Filter notes based on user role and individual staff access
-    let filteredNotes = notes
-    if (user.role === 'STAFF') {
-      // Get the staff member for this user
-      const staffMember = await prisma.staff.findUnique({
-        where: { userId: user.userId }
-      })
-      
-      if (staffMember) {
-        // Staff can only see notes that they have explicit access to
-        filteredNotes = notes.filter(note => 
-          note.visibleToStaff.some(access => 
-            access.staffId === staffMember.id && access.canView
-          )
-        )
-      } else {
-        filteredNotes = []
-      }
-    }
-
-    return NextResponse.json({ notes: filteredNotes })
+    return NextResponse.json(notes)
   } catch (error) {
     console.error('Error fetching coach notes:', error)
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: 'Internal server error',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }
@@ -97,10 +53,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Authentication is handled by middleware
-
     const body = await request.json()
-    const { title, content, isPinned, staffAccess } = body
+    const { title, content, isPinned } = body
 
     if (!title || !content) {
       return NextResponse.json(
@@ -109,46 +63,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create the note
-    const noteData: any = {
-      title,
-      content,
-      isPinned: isPinned || false
-    }
-
-    // Only add visibleToStaff if there are staff access entries
-    if (staffAccess && staffAccess.length > 0) {
-      noteData.visibleToStaff = {
-        create: staffAccess.map((access: { staffId: string; canView: boolean }) => ({
-          staffId: access.staffId,
-          canView: access.canView
-        }))
-      }
-    }
-
     const note = await prisma.coachNote.create({
-      data: noteData,
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            role: true
-          }
-        },
-        visibleToStaff: {
-          include: {
-            staff: {
-              select: {
-                id: true,
-                name: true,
-                email: true
-              }
-            }
-          }
-        }
-      }
+      data: {
+        title,
+        content,
+        isPinned: isPinned || false,
+        authorId: 'admin-001', // Default admin ID
+      },
     })
 
     return NextResponse.json(note, { status: 201 })

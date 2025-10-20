@@ -8,23 +8,10 @@ export async function POST(
   try {
     const { id } = await params
 
-    console.log('📸 Avatar upload request for player:', id)
-
-    if (!id) {
-      console.log('❌ No player ID provided')
-      return NextResponse.json(
-        { message: 'Player ID is required' },
-        { status: 400 }
-      )
-    }
-
     const formData = await request.formData()
     const file = formData.get('avatar') as File
 
-    console.log('📸 File received:', file ? { name: file.name, size: file.size, type: file.type } : 'No file')
-
     if (!file) {
-      console.log('❌ No file uploaded')
       return NextResponse.json(
         { message: 'No file uploaded' },
         { status: 400 }
@@ -49,19 +36,15 @@ export async function POST(
       )
     }
 
-    // For Vercel deployment, store as base64 instead of file system
     // Convert file to base64 and store directly in database
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
     const base64Image = `data:${file.type};base64,${buffer.toString('base64')}`
-    
-    // Use base64 image as avatar URL
-    const avatarUrl = base64Image
-    console.log('📸 Updating player with imageUrl:', avatarUrl)
-    
+
+    // Update player with base64 image
     const updatedPlayer = await prisma.player.update({
       where: { id },
-      data: { imageUrl: avatarUrl },
+      data: { imageUrl: base64Image },
       select: {
         id: true,
         name: true,
@@ -69,26 +52,18 @@ export async function POST(
       },
     })
 
-    console.log('✅ Avatar upload successful:', updatedPlayer)
-
     return NextResponse.json({
       message: 'Avatar uploaded successfully',
-      avatar: avatarUrl,
+      avatar: base64Image,
       player: updatedPlayer,
     })
+
   } catch (error) {
-    console.error('💥 Error uploading avatar:', error)
-    console.error('💥 Error details:', {
-      name: error instanceof Error ? error.name : 'Unknown',
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace'
-    })
-    
+    console.error('Error uploading avatar:', error)
     return NextResponse.json(
       { 
         message: 'Failed to upload avatar', 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: error instanceof Error ? error.stack : 'No details available'
+        error: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     )
@@ -102,27 +77,7 @@ export async function DELETE(
   try {
     const { id } = await params
 
-    if (!id) {
-      return NextResponse.json(
-        { message: 'Player ID is required' },
-        { status: 400 }
-      )
-    }
-
-    // Get current player to find imageUrl path
-    const player = await prisma.player.findUnique({
-      where: { id },
-      select: { imageUrl: true },
-    })
-
-    if (!player) {
-      return NextResponse.json(
-        { message: 'Player not found' },
-        { status: 404 }
-      )
-    }
-
-    // Remove imageUrl from database
+    // Remove avatar from player
     const updatedPlayer = await prisma.player.update({
       where: { id },
       data: { imageUrl: null },
@@ -133,28 +88,18 @@ export async function DELETE(
       },
     })
 
-    // Optionally delete the file from disk
-    if (player.imageUrl) {
-      try {
-        const { unlink } = await import('fs/promises')
-        const filePath = join(process.cwd(), 'public', player.imageUrl)
-        if (existsSync(filePath)) {
-          await unlink(filePath)
-        }
-      } catch (fileError) {
-        console.error('Error deleting avatar file:', fileError)
-        // Don't fail the request if file deletion fails
-      }
-    }
-
     return NextResponse.json({
       message: 'Avatar removed successfully',
       player: updatedPlayer,
     })
+
   } catch (error) {
     console.error('Error removing avatar:', error)
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: 'Failed to remove avatar', 
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }
